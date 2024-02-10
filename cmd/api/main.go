@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/sivukhin/gobughunt/lib/dto"
 	"github.com/sivukhin/gobughunt/lib/logging"
 	"github.com/sivukhin/gobughunt/lib/storage"
 	"github.com/sivukhin/gobughunt/lib/utils"
@@ -14,6 +15,7 @@ import (
 
 func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
+
 		result, err := handle(request)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -26,6 +28,8 @@ func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc
 			_, _ = writer.Write([]byte(err.Error()))
 		}
 		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+		writer.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write(response)
 	}
@@ -74,6 +78,43 @@ func main() {
 			return nil, fmt.Errorf("lintId required")
 		}
 		return bugHuntStorage.LintHighlights(request.Context(), lintId)
+	}))
+	server.Handle("/api/lint-highlights/moderate", wrap(func(request *http.Request) (struct{}, error) {
+		params := request.URL.Query()
+		lintId := params.Get("lintId")
+		if lintId == "" {
+			return struct{}{}, fmt.Errorf("lintId required")
+		}
+		path := params.Get("path")
+		if path == "" {
+			return struct{}{}, fmt.Errorf("path required")
+		}
+		startLineString := params.Get("startLine")
+		if startLineString == "" {
+			return struct{}{}, fmt.Errorf("startLine required")
+		}
+		startLine, err := strconv.Atoi(startLineString)
+		if err != nil {
+			return struct{}{}, err
+		}
+		endLineString := params.Get("endLine")
+		if endLineString == "" {
+			return struct{}{}, fmt.Errorf("endLine required")
+		}
+		endLine, err := strconv.Atoi(endLineString)
+		if err != nil {
+			return struct{}{}, err
+		}
+		status := params.Get("status")
+		if status != "accepted" && status != "rejected" {
+			return struct{}{}, fmt.Errorf("unexpected status: %v", status)
+		}
+		highlight := dto.LintHighlight{
+			Path:      path,
+			StartLine: startLine,
+			EndLine:   endLine,
+		}
+		return struct{}{}, bugHuntStorage.ModerateHighlight(request.Context(), lintId, highlight, status)
 	}))
 
 	err = http.ListenAndServe(":3000", server)

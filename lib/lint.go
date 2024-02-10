@@ -127,6 +127,8 @@ func ExtractHighlightSnippets(targetDir string, highlights []dto.LintHighlight) 
 	return highlightSnippets, nil
 }
 
+const snippetSurroundingLines = 2
+
 func ExtractHighlightSnippetsForFile(content []byte, highlights []dto.LintHighlight) ([]dto.LintHighlightSnippet, error) {
 	snippets := make([]dto.LintHighlightSnippet, 0, len(highlights))
 	lines := bytes.Split(content, []byte("\n"))
@@ -137,18 +139,39 @@ func ExtractHighlightSnippetsForFile(content []byte, highlights []dto.LintHighli
 		if highlight.StartLine > len(lines) || highlight.EndLine > len(lines) {
 			return nil, fmt.Errorf("invalid highlight lines: highlight=%+v", highlight)
 		}
-		startLine := max(0, highlight.StartLine-1-1)
-		endLine := min(len(lines), highlight.EndLine+1)
+		startLine := max(0, highlight.StartLine-1-snippetSurroundingLines)
+		endLine := min(len(lines), highlight.EndLine+snippetSurroundingLines)
 		snippets = append(snippets, dto.LintHighlightSnippet{
 			LintHighlight: highlight,
 			Snippet: dto.HighlightSnippet{
 				StartLine: startLine + 1,
 				EndLine:   endLine,
-				Code:      string(bytes.Join(lines[startLine:endLine], []byte("\n"))),
+				Code:      string(bytes.Join(ReduceIndentation(lines[startLine:endLine]), []byte("\n"))),
 			},
 		})
 	}
 	return snippets, nil
+}
+
+func isSpace(c byte) bool { return c == '\t' || c == ' ' }
+
+func ReduceIndentation(lines [][]byte) [][]byte {
+	if len(lines) == 0 {
+		return lines
+	}
+	toCut := len(lines[0])
+	for i := 1; i < len(lines); i++ {
+		commonPrefix := 0
+		for commonPrefix < len(lines[i-1]) && commonPrefix < len(lines[i]) && lines[i][commonPrefix] == lines[i-1][commonPrefix] && isSpace(lines[i][commonPrefix]) {
+			commonPrefix++
+		}
+		toCut = min(toCut, commonPrefix)
+	}
+	reduced := make([][]byte, 0, len(lines))
+	for _, line := range lines {
+		reduced = append(reduced, line[toCut:])
+	}
+	return reduced
 }
 
 func ExtractHighlights(rawLines []string) (highlights []dto.LintHighlight, skipped bool) {

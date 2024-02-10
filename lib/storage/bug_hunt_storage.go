@@ -3,7 +3,10 @@ package storage
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"time"
+
+	"github.com/sivukhin/gobughunt/lib/dto"
 )
 
 type StatDto struct {
@@ -35,9 +38,12 @@ type RepoDto struct {
 }
 
 type LintTaskDto struct {
-	Id     string    `json:"id"`
-	Linter LinterDto `json:"linter"`
-	Repo   RepoDto   `json:"repo"`
+	Id              string    `json:"id"`
+	Status          string    `json:"status"`
+	StatusComment   string    `json:"statusComment"`
+	LintDurationSec *float64  `json:"lintDurationSec"`
+	Linter          LinterDto `json:"linter"`
+	Repo            RepoDto   `json:"repo"`
 }
 
 type HighlightSnippetDto struct {
@@ -49,6 +55,7 @@ type HighlightSnippetDto struct {
 type LintHighlightDto struct {
 	Linter      LinterDto           `json:"linter"`
 	Repo        RepoDto             `json:"repo"`
+	Status      string              `json:"status"`
 	Path        string              `json:"path"`
 	StartLine   int                 `json:"startLine"`
 	EndLine     int                 `json:"endLine"`
@@ -61,6 +68,7 @@ type BugHuntStorage interface {
 	Repos(ctx context.Context) ([]RepoDto, error)
 	LintTasks(ctx context.Context, skip int, take int) ([]LintTaskDto, error)
 	LintHighlights(ctx context.Context, lintId string) ([]LintHighlightDto, error)
+	ModerateHighlight(ctx context.Context, lintId string, highlight dto.LintHighlight, status string) error
 }
 
 type PgBugHuntStorage PgStorage
@@ -78,6 +86,9 @@ var bugHuntLintersSql string
 
 //go:embed queries/bug_hunt_repos.sql
 var bugHuntReposSql string
+
+//go:embed queries/bug_hunt_lint_highlight_moderate.sql
+var bugHuntLintHighlightModerateSql string
 
 func (b PgBugHuntStorage) Linters(ctx context.Context) ([]LinterDto, error) {
 	rows, err := b.Query(ctx, bugHuntLintersSql)
@@ -223,7 +234,7 @@ func (b PgBugHuntStorage) LintTasks(ctx context.Context, skip int, take int) ([]
 			lintId              string
 			lintStatus          string
 			lintStatusComment   string
-			lintDuration        time.Duration
+			lintDuration        *time.Duration
 		)
 		err = rows.Scan(
 			&repoId,
@@ -243,8 +254,16 @@ func (b PgBugHuntStorage) LintTasks(ctx context.Context, skip int, take int) ([]
 		if err != nil {
 			return nil, err
 		}
+		var durationSec *float64
+		if lintDuration != nil {
+			duration := lintDuration.Seconds()
+			durationSec = &duration
+		}
 		lintTasks = append(lintTasks, LintTaskDto{
-			Id: lintId,
+			Id:              lintId,
+			Status:          lintStatus,
+			StatusComment:   lintStatusComment,
+			LintDurationSec: durationSec,
 			Linter: LinterDto{
 				Id:                 linterId,
 				GitUrl:             linterGitUrl,
@@ -338,6 +357,7 @@ func (b PgBugHuntStorage) LintHighlights(ctx context.Context, lintId string) ([]
 				GitBranch:     repoGitBranch,
 				GitCommitHash: &repoGitCommitHash,
 			},
+			Status:      moderationStatus,
 			Path:        path,
 			StartLine:   startLine,
 			EndLine:     endLine,
@@ -353,4 +373,20 @@ func (b PgBugHuntStorage) LintHighlights(ctx context.Context, lintId string) ([]
 		return nil, rows.Err()
 	}
 	return highlights, nil
+}
+
+func (b PgBugHuntStorage) ModerateHighlight(ctx context.Context, lintId string, highlight dto.LintHighlight, status string) error {
+	_, err := b.Exec(
+		ctx,
+		bugHuntLintHighlightModerateSql,
+		lintId,
+		highlight.Path,
+		highlight.StartLine,
+		highlight.EndLine,
+		status,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to moderate lint highlight: %w", err)
+	}
+	return nil
 }

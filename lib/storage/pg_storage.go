@@ -4,19 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/sivukhin/gobughunt/lib/logging"
 )
 
-type PgStorage struct{ *pgx.Conn }
+type PgStorage struct{ *pgxpool.Pool }
 
 func NewPgStorage(ctx context.Context, connectionString string) (PgStorage, error) {
-	connection, err := pgx.Connect(ctx, connectionString)
+	pool, err := pgxpool.New(ctx, connectionString)
 	if err != nil {
 		return PgStorage{}, fmt.Errorf("failed to connect: %w", err)
 	}
-	config := connection.Config()
+	config := pool.Config().ConnConfig.Config
 	logging.Logger.Infof("connection established: host=%v, db=%v", config.Host, config.Database)
-	return PgStorage{connection}, nil
+	return PgStorage{pool}, nil
 }
