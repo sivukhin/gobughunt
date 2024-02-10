@@ -28,12 +28,6 @@ type PgLintStorage PgStorage
 
 var _ LinterStorage = PgLinterStorage{}
 
-//go:embed queries/lint_task.sql
-var lintTaskTableSql string
-
-//go:embed queries/lint_highlights.sql
-var lintHighlightsTableSql string
-
 //go:embed queries/lint_task_insert.sql
 var lintTaskInsertSql string
 
@@ -46,22 +40,16 @@ var lintTaskSetSql string
 //go:embed queries/lint_highlights_add.sql
 var lintHighlightsAddSql string
 
-func (p PgLintStorage) InitTables(ctx context.Context) error {
-	_, lintTaskTableErr := p.Exec(ctx, lintTaskTableSql)
-	_, lintHighlightsTableErr := p.Exec(ctx, lintHighlightsTableSql)
-	return errors.Join(lintTaskTableErr, lintHighlightsTableErr)
-}
-
 func (p PgLintStorage) TryAdd(ctx context.Context, lintTask dto.LintTask, createdAt time.Time) error {
 	_, err := p.Exec(
 		ctx,
 		lintTaskInsertSql,
-		lintTask.LintId,
+		lintTask.Id,
 		"pending",
-		lintTask.Linter.LinterId,
+		lintTask.Linter.Id,
 		lintTask.Linter.DockerImage,
 		lintTask.Linter.DockerImageShaHash,
-		lintTask.Repo.RepoId,
+		lintTask.Repo.Id,
 		lintTask.Repo.GitUrl,
 		lintTask.Repo.GitCommitHash,
 		createdAt,
@@ -101,14 +89,14 @@ func (p PgLintStorage) TryTake(ctx context.Context, lockTimeLowerBound time.Time
 		return dto.LintTask{}, err
 	}
 	lintTask := dto.LintTask{
-		LintId: lintId,
+		Id: lintId,
 		Linter: dto.LinterInstance{
-			LinterId:           linterId,
+			Id:                 linterId,
 			DockerImage:        linterDockerImage,
 			DockerImageShaHash: linterDockerShaHash,
 		},
 		Repo: dto.RepoInstance{
-			RepoId:        repoId,
+			Id:            repoId,
 			GitUrl:        repoGitUrl,
 			GitCommitHash: repoGitCommitHash,
 		},
@@ -122,7 +110,7 @@ func (p PgLintStorage) Set(ctx context.Context, lintTask dto.LintTask, lintResul
 		for _, highlight := range lintResult.Highlights {
 			batch.Queue(
 				lintHighlightsAddSql,
-				lintTask.LintId,
+				lintTask.Id,
 				highlight.Path,
 				highlight.StartLine,
 				highlight.EndLine,
@@ -142,10 +130,10 @@ func (p PgLintStorage) Set(ctx context.Context, lintTask dto.LintTask, lintResul
 	_, err := p.Exec(
 		ctx,
 		lintTaskSetSql,
-		lintTask.LintId,
-		lintResult.LintStatus,
-		lintResult.LintStatusComment,
-		lintResult.LintDuration,
+		lintTask.Id,
+		lintResult.Status,
+		lintResult.StatusComment,
+		lintResult.Duration,
 		lintedAt,
 	)
 	if err != nil {

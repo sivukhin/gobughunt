@@ -11,12 +11,12 @@ import (
 
 func TestLint(t *testing.T) {
 	repo := dto.RepoInstance{
-		RepoId:        "test-repo",
+		Id:            "test-repo",
 		GitUrl:        "https://github.com/drakkan/sftpgo",
 		GitCommitHash: "c8da72a7f7ea10a3ca853f66f0ad80855893b775",
 	}
 	linter := dto.LinterInstance{
-		LinterId:           "test-linter",
+		Id:                 "test-linter",
 		DockerImage:        "sivukhinnikita/govanish:3.0.0",
 		DockerImageShaHash: "e0a20eadc9d60c1a67f9b3cb7aa1431b2fb8b93c1cf6ae002e297f2465c16dd8",
 	}

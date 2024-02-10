@@ -20,14 +20,14 @@ func TestSet(t *testing.T) {
 	lintStorage := PgLintStorage(storage)
 
 	task := dto.LintTask{
-		LintId: utils.Must(guid.NewV4()).String(),
+		Id: utils.Must(guid.NewV4()).String(),
 		Linter: dto.LinterInstance{
-			LinterId:           "test-linter-" + utils.Must(guid.NewV4()).String(),
+			Id:                 "test-linter-" + utils.Must(guid.NewV4()).String(),
 			DockerImage:        "sivukhinnikita/govanish:1.0.0",
 			DockerImageShaHash: utils.Must(guid.NewV4()).String(),
 		},
 		Repo: dto.RepoInstance{
-			RepoId:        "test-repo-" + utils.Must(guid.NewV4()).String(),
+			Id:            "test-repo-" + utils.Must(guid.NewV4()).String(),
 			GitUrl:        "https://github.com/drakkan/sftpgo",
 			GitCommitHash: utils.Must(guid.NewV4()).String(),
 		},
@@ -38,9 +38,9 @@ func TestSet(t *testing.T) {
 	t.Log(task)
 	require.Nil(t, err)
 	result := dto.LintResult{
-		LintStatus:        dto.Failed,
-		LintStatusComment: "non zero exit code",
-		LintDuration:      time.Minute,
+		Status:        dto.Failed,
+		StatusComment: "non zero exit code",
+		Duration:      time.Minute,
 		Highlights: []dto.LintHighlightSnippet{{
 			LintHighlight: dto.LintHighlight{
 				Path:        "/some/path",
@@ -48,7 +48,11 @@ func TestSet(t *testing.T) {
 				EndLine:     2,
 				Explanation: "lines were vanished",
 			},
-			Snippet: "if err != nil {\n    return err\n}\n",
+			Snippet: dto.HighlightSnippet{
+				StartLine: 1,
+				EndLine:   3,
+				Code:      "if err != nil {\n    return err\n}\n",
+			},
 		}},
 	}
 	err = lintStorage.Set(context.Background(), task, result, time.Now())

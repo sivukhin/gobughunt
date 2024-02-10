@@ -68,9 +68,9 @@ func (p PgLinterStorage) AddOrUpdate(ctx context.Context, linter dto.Linter, upd
 	_, err := p.Exec(
 		ctx,
 		linterAddOrUpdate,
-		linter.Meta.LinterId,
-		linter.Meta.LinterGitUrl,
-		linter.Meta.LinterGitBranch,
+		linter.Meta.Id,
+		linter.Meta.GitUrl,
+		linter.Meta.GitBranch,
 		dockerImage,
 		dockerImageShaHash,
 		updatedAt,
@@ -131,14 +131,14 @@ func scanLinterRow(rows pgx.Row) (dto.Linter, error) {
 		return dto.Linter{}, err
 	}
 	meta := dto.LinterMeta{
-		LinterId:        linterId,
-		LinterGitUrl:    linterGitUrl,
-		LinterGitBranch: linterGitBranch,
+		Id:        linterId,
+		GitUrl:    linterGitUrl,
+		GitBranch: linterGitBranch,
 	}
 	var instance *dto.LinterInstance
 	if linterLastDockerImage != nil && linterLastDockerShaHash != nil {
 		instance = &dto.LinterInstance{
-			LinterId:           linterId,
+			Id:                 linterId,
 			DockerImage:        *linterLastDockerImage,
 			DockerImageShaHash: *linterLastDockerShaHash,
 		}

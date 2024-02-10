@@ -54,24 +54,24 @@ func (w Worker) RunOnce(ctx context.Context) error {
 	highlights, err := w.Linting.Run(ctx, lintTask.Repo, lintTask.Linter)
 	if errors.Is(err, LintSkippedErr) {
 		return w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-			LintStatus:   dto.Skipped,
-			LintDuration: time.Since(startLintTime),
+			Status:   dto.Skipped,
+			Duration: time.Since(startLintTime),
 		}, time.Now())
 	} else if errors.Is(err, LintTempErr) {
 		return errors.Join(err, w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-			LintStatus:   dto.Pending,
-			LintDuration: time.Since(startLintTime),
+			Status:   dto.Pending,
+			Duration: time.Since(startLintTime),
 		}, time.Now()))
 	} else if err != nil {
 		return errors.Join(err, w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-			LintStatus:        dto.Failed,
-			LintStatusComment: err.Error(),
-			LintDuration:      time.Since(startLintTime),
+			Status:        dto.Failed,
+			StatusComment: err.Error(),
+			Duration:      time.Since(startLintTime),
 		}, time.Now()))
 	}
 	return w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-		LintStatus:   dto.Succeed,
-		LintDuration: time.Since(startLintTime),
-		Highlights:   highlights,
+		Status:     dto.Succeed,
+		Duration:   time.Since(startLintTime),
+		Highlights: highlights,
 	}, now)
 }

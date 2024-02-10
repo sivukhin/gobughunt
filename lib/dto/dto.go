@@ -11,19 +11,19 @@ type Linter struct {
 }
 
 type LinterMeta struct {
-	LinterId        string
-	LinterGitUrl    string
-	LinterGitBranch string
+	Id        string
+	GitUrl    string
+	GitBranch string
 }
 
 type LinterInstance struct {
-	LinterId           string
+	Id                 string
 	DockerImage        string
 	DockerImageShaHash string
 }
 
 func (linter LinterInstance) String() string {
-	return fmt.Sprintf("[%v](%v@sha256:%v)", linter.LinterId, linter.DockerImage, linter.DockerImageShaHash)
+	return fmt.Sprintf("[%v](%v@sha256:%v)", linter.Id, linter.DockerImage, linter.DockerImageShaHash)
 }
 
 type Repo struct {
@@ -32,19 +32,19 @@ type Repo struct {
 }
 
 type RepoMeta struct {
-	RepoId        string
-	RepoGitUrl    string
-	RepoGitBranch string
+	Id        string
+	GitUrl    string
+	GitBranch string
 }
 
 type RepoInstance struct {
-	RepoId        string
+	Id            string
 	GitUrl        string
 	GitCommitHash string
 }
 
 func (repo RepoInstance) String() string {
-	return fmt.Sprintf("[%v](%v, %v)", repo.RepoId, repo.GitUrl, repo.GitCommitHash)
+	return fmt.Sprintf("[%v](%v, %v)", repo.Id, repo.GitUrl, repo.GitCommitHash)
 }
 
 type LintStatus string
@@ -57,16 +57,16 @@ const (
 )
 
 type LintTask struct {
-	LintId string
+	Id     string
 	Linter LinterInstance
 	Repo   RepoInstance
 }
 
 type LintResult struct {
-	LintStatus        LintStatus
-	LintStatusComment string
-	LintDuration      time.Duration
-	Highlights        []LintHighlightSnippet
+	Status        LintStatus
+	StatusComment string
+	Duration      time.Duration
+	Highlights    []LintHighlightSnippet
 }
 
 type HighlightSnippet struct {

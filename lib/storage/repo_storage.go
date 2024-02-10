@@ -34,9 +34,6 @@ type PgRepoStorage PgStorage
 
 var _ RepoStorage = PgRepoStorage{}
 
-//go:embed queries/repos.sql
-var repoTableSql string
-
 //go:embed queries/repos_add_or_update.sql
 var repoAddOrUpdate string
 
@@ -51,11 +48,6 @@ var repoDeleteSql string
 
 var NoRepoErr = errors.New("repo not found")
 
-func (p PgRepoStorage) InitTables(ctx context.Context) error {
-	_, repoTableErr := p.Exec(ctx, repoTableSql)
-	return repoTableErr
-}
-
 func (p PgRepoStorage) AddOrUpdate(ctx context.Context, repo dto.Repo, updatedAt time.Time) error {
 	var gitCommitHash *string
 	if repo.Instance != nil {
@@ -64,9 +56,9 @@ func (p PgRepoStorage) AddOrUpdate(ctx context.Context, repo dto.Repo, updatedAt
 	_, err := p.Exec(
 		ctx,
 		repoAddOrUpdate,
-		repo.Meta.RepoId,
-		repo.Meta.RepoGitUrl,
-		repo.Meta.RepoGitBranch,
+		repo.Meta.Id,
+		repo.Meta.GitUrl,
+		repo.Meta.GitBranch,
 		gitCommitHash,
 		updatedAt,
 	)
@@ -125,14 +117,14 @@ func scanRepoRow(rows pgx.Row) (dto.Repo, error) {
 		return dto.Repo{}, err
 	}
 	meta := dto.RepoMeta{
-		RepoId:        repoId,
-		RepoGitUrl:    repoGitUrl,
-		RepoGitBranch: repoGitBranch,
+		Id:        repoId,
+		GitUrl:    repoGitUrl,
+		GitBranch: repoGitBranch,
 	}
 	var instance *dto.RepoInstance
 	if repoLastGitCommitHash != nil {
 		instance = &dto.RepoInstance{
-			RepoId:        repoId,
+			Id:            repoId,
 			GitUrl:        repoGitUrl,
 			GitCommitHash: *repoLastGitCommitHash,
 		}

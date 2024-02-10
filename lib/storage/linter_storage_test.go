@@ -21,9 +21,9 @@ func TestLinterStorageInsert(t *testing.T) {
 
 	err = linterStorage.AddOrUpdate(context.Background(), dto.Linter{
 		Meta: dto.LinterMeta{
-			LinterId:        utils.Must(guid.NewV4()).String(),
-			LinterGitUrl:    "git",
-			LinterGitBranch: "branch",
+			Id:        utils.Must(guid.NewV4()).String(),
+			GitUrl:    "git",
+			GitBranch: "branch",
 		},
 	}, time.Now())
 	require.Nil(t, err)
@@ -37,15 +37,15 @@ func TestLinterStorageUpsert(t *testing.T) {
 	require.Nil(t, linterStorage.InitTables(context.Background()))
 
 	meta := dto.LinterMeta{
-		LinterId:        utils.Must(guid.NewV4()).String(),
-		LinterGitUrl:    "git",
-		LinterGitBranch: "branch",
+		Id:        utils.Must(guid.NewV4()).String(),
+		GitUrl:    "git",
+		GitBranch: "branch",
 	}
 	now := time.Now()
 	err = linterStorage.AddOrUpdate(context.Background(), dto.Linter{Meta: meta}, now)
 	require.Nil(t, err)
 	instance := &dto.LinterInstance{
-		LinterId:           meta.LinterId,
+		Id:                 meta.Id,
 		DockerImage:        "docker-image",
 		DockerImageShaHash: "docker-sha",
 	}

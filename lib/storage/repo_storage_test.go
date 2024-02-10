@@ -17,13 +17,12 @@ func TestRepoStorageInsert(t *testing.T) {
 	require.Nil(t, err)
 
 	repoStorage := PgRepoStorage(storage)
-	require.Nil(t, repoStorage.InitTables(context.Background()))
 
 	err = repoStorage.AddOrUpdate(context.Background(), dto.Repo{
 		Meta: dto.RepoMeta{
-			RepoId:        utils.Must(guid.NewV4()).String(),
-			RepoGitUrl:    "git",
-			RepoGitBranch: "branch",
+			Id:        utils.Must(guid.NewV4()).String(),
+			GitUrl:    "git",
+			GitBranch: "branch",
 		},
 	}, time.Now())
 	require.Nil(t, err)

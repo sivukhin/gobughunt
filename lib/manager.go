@@ -75,15 +75,15 @@ func (m Manager) RefreshRepo(ctx context.Context, repo dto.Repo) error {
 		return fmt.Errorf("mkdir temp failed: %w", err)
 	}
 	defer os.Remove(targetDir)
-	info, err := m.GitApi.Fetch(ctx, repo.Meta.RepoGitUrl, dto.GitRef{Branch: repo.Meta.RepoGitBranch}, targetDir)
+	info, err := m.GitApi.Fetch(ctx, repo.Meta.GitUrl, dto.GitRef{Branch: repo.Meta.GitBranch}, targetDir)
 	if err != nil {
 		return fmt.Errorf("failed to fetch repo %v: %w", repo, err)
 	}
 	return m.RepoStorage.AddOrUpdate(ctx, dto.Repo{
 		Meta: repo.Meta,
 		Instance: &dto.RepoInstance{
-			RepoId:        repo.Meta.RepoId,
-			GitUrl:        repo.Meta.RepoGitUrl,
+			Id:            repo.Meta.Id,
+			GitUrl:        repo.Meta.GitUrl,
 			GitCommitHash: info.CommitHash,
 		},
 	}, time.Now())
@@ -91,7 +91,7 @@ func (m Manager) RefreshRepo(ctx context.Context, repo dto.Repo) error {
 
 func (m Manager) ManageOnce(ctx context.Context, repo dto.Repo, linter dto.Linter) error {
 	lintId := utils.Must(guid.NewV4()).String()
-	lintTask := dto.LintTask{LintId: lintId, Linter: *linter.Instance, Repo: *repo.Instance}
+	lintTask := dto.LintTask{Id: lintId, Linter: *linter.Instance, Repo: *repo.Instance}
 	err := m.LintStorage.TryAdd(ctx, lintTask, time.Now())
 	if errors.Is(err, storage.DuplicateTaskErr) {
 		return nil
