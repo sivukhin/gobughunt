@@ -83,8 +83,12 @@ func (p PgLinterStorage) Get(ctx context.Context, linterId string) (dto.Linter, 
 	if err != nil {
 		return dto.Linter{}, err
 	}
+	defer rows.Close()
 	for rows.Next() {
 		return scanLinterRow(rows)
+	}
+	if rows.Err() != nil {
+		return dto.Linter{}, rows.Err()
 	}
 	return dto.Linter{}, NoLinterErr
 }
@@ -94,6 +98,7 @@ func (p PgLinterStorage) List(ctx context.Context) (LinterList, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	linters := make(LinterList, 0)
 	for rows.Next() {
 		linter, err := scanLinterRow(rows)
@@ -101,6 +106,9 @@ func (p PgLinterStorage) List(ctx context.Context) (LinterList, error) {
 			return nil, err
 		}
 		linters = append(linters, linter)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
 	}
 	return linters, nil
 }

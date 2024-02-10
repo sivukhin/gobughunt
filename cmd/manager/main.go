@@ -15,8 +15,9 @@ func main() {
 	var (
 		connectionDuration = utils.EnvMustParseDurationSec("CONNECTION_DURATION_SEC")
 		connectionString   = utils.EnvMustParseString("CONNECTION_STRING")
-		iterationTimeout   = utils.EnvMustParseDurationSec("MANAGER_ITERATION_TIMEOUT_SEC")
-		iterationDelay     = utils.EnvMustParseDurationSec("MANAGER_ITERATION_DELAY_SEC")
+		scheduleTimeout    = utils.EnvMustParseDurationSec("MANAGER_SCHEDULE_TIMEOUT_SEC")
+		scheduleDelay      = utils.EnvMustParseDurationSec("MANAGER_SCHEDULE_DELAY_SEC")
+		shortDelay         = utils.EnvMustParseDurationSec("MANAGER_SHORT_DELAY_SEC")
 	)
 	connectCtx, cancel := context.WithTimeout(context.Background(), connectionDuration)
 	defer cancel()
@@ -33,8 +34,9 @@ func main() {
 		LintStorage:     storage.PgLintStorage(pgStorage),
 		DockerApi:       lib.NaiveDockerApi,
 		GitApi:          lib.NaiveGitApi,
-		ScheduleTimeout: iterationTimeout,
-		ScheduleDelay:   iterationDelay,
+		ScheduleTimeout: scheduleTimeout,
+		ScheduleDelay:   scheduleDelay,
+		ShortDelay:      shortDelay,
 	}
 	manager.ManageForever(signalsCtx)
 }

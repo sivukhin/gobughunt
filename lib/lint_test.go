@@ -16,11 +16,41 @@ func TestLint(t *testing.T) {
 		GitCommitHash: "c8da72a7f7ea10a3ca853f66f0ad80855893b775",
 	}
 	linter := dto.LinterInstance{
-		LinterId:    "test-linter",
-		DockerImage: "sivukhinnikita/govanish:1.0.0@sha256:91fc7f5131aa71e5659de72b78934ecef3373cf1315469e5e8a9d3e18b7e0b89",
+		LinterId:           "test-linter",
+		DockerImage:        "sivukhinnikita/govanish:3.0.0",
+		DockerImageShaHash: "e0a20eadc9d60c1a67f9b3cb7aa1431b2fb8b93c1cf6ae002e297f2465c16dd8",
 	}
-	highlihts, err := NaiveLinting.Run(context.Background(), repo, linter)
-	t.Log(highlihts, err)
+	highlights, err := NaiveLinting.Run(context.Background(), repo, linter)
+	t.Log(highlights, err)
+}
+
+func TestExtractHighlightSnippetsForFile(t *testing.T) {
+	t.Run("simple", func(t *testing.T) {
+		snippets, err := ExtractHighlightSnippetsForFile([]byte(`line 1
+line 2
+line 3
+line 4
+line 5`), []dto.LintHighlight{{StartLine: 1, EndLine: 1}, {StartLine: 3, EndLine: 3}})
+		require.Nil(t, err)
+		require.Equal(t, []dto.LintHighlightSnippet{{
+			LintHighlight: dto.LintHighlight{StartLine: 1, EndLine: 1},
+			Snippet: dto.HighlightSnippet{
+				StartLine: 1,
+				EndLine:   2,
+				Code: `line 1
+line 2`,
+			},
+		}, {
+			LintHighlight: dto.LintHighlight{StartLine: 3, EndLine: 3},
+			Snippet: dto.HighlightSnippet{
+				StartLine: 2,
+				EndLine:   4,
+				Code: `line 2
+line 3
+line 4`,
+			},
+		}}, snippets)
+	})
 }
 
 func TestExtractHighlights(t *testing.T) {

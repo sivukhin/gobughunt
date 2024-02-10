@@ -1,4 +1,7 @@
 CREATE TYPE HighlightStatus AS ENUM ('pending', 'accepted', 'rejected');
+
+--- DELIMITER ---
+
 CREATE TABLE IF NOT EXISTS lint_highlights
 (
     lint_id            TEXT            NOT NULL,
@@ -6,7 +9,9 @@ CREATE TABLE IF NOT EXISTS lint_highlights
     start_line         INT             NOT NULL,
     end_line           INT             NOT NULL,
     explanation        TEXT            NOT NULL,
-    snippet            TEXT            NOT NULL,
+    snippet_start_line INT             NOT NULL,
+    snippet_end_line   INT             NOT NULL,
+    snippet_code       TEXT            NOT NULL,
 
     moderation_status  HighlightStatus NOT NULL DEFAULT 'pending',
     moderation_comment TEXT,

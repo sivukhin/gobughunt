@@ -78,8 +78,12 @@ func (p PgRepoStorage) Get(ctx context.Context, repoId string) (dto.Repo, error)
 	if err != nil {
 		return dto.Repo{}, err
 	}
+	defer rows.Close()
 	for rows.Next() {
 		return scanRepoRow(rows)
+	}
+	if rows.Err() != nil {
+		return dto.Repo{}, rows.Err()
 	}
 	return dto.Repo{}, NoRepoErr
 }
@@ -89,6 +93,7 @@ func (p PgRepoStorage) List(ctx context.Context) (RepoList, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	repos := make(RepoList, 0)
 	for rows.Next() {
 		repo, err := scanRepoRow(rows)
@@ -96,6 +101,9 @@ func (p PgRepoStorage) List(ctx context.Context) (RepoList, error) {
 			return nil, err
 		}
 		repos = append(repos, repo)
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
 	}
 	return repos, nil
 }

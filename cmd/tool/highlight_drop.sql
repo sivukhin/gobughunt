@@ -1,0 +1,1 @@
+DROP TABLE lint_highlights

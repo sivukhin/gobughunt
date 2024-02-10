@@ -52,6 +52,7 @@ func (_ naiveDockerApi) Exec(ctx context.Context, dockerImage string, containerB
 	attach, err := cli.ContainerAttach(ctx, create.ID, types.ContainerAttachOptions{
 		Stream: true,
 		Stderr: true,
+		Stdout: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to attach to container %v: %w", create.ID, err)

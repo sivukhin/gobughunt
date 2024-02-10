@@ -24,14 +24,12 @@ type Manager struct {
 	GitApi          GitApi
 	ScheduleTimeout time.Duration
 	ScheduleDelay   time.Duration
-	RefreshTimeout  time.Duration
-	RefreshDelay    time.Duration
 	ShortDelay      time.Duration
 }
 
 func (m Manager) ManageForever(ctx context.Context) {
-	logging.Logger.Infof("manager started: timeout=%v, delay=%v", m.ScheduleTimeout, m.ScheduleDelay)
-	schedulerCh := timeout.RunForeverAsync("scheduler", ctx, m.ScheduleTimeout, func(ctx context.Context) time.Duration {
+	logging.Logger.Infof("manager started: scheduleTimeout=%v, scheduleDelay=%v, shortDelay=%v", m.ScheduleTimeout, m.ScheduleDelay, m.ShortDelay)
+	<-timeout.RunForeverAsync("scheduler", ctx, m.ScheduleTimeout, func(ctx context.Context) time.Duration {
 		allLinters, err := m.LinterStorage.List(ctx)
 		if err != nil {
 			logging.Logger.Errorf("failed to fetch all linters: %v", err)
@@ -47,6 +45,16 @@ func (m Manager) ManageForever(ctx context.Context) {
 		}
 		repos := allRepos.SelectWithInstances()
 		logging.Logger.Infof("found %v repos, %v with instances", len(allRepos), len(repos))
+
+		for _, repo := range allRepos {
+			err := m.RefreshRepo(ctx, repo)
+			if err != nil {
+				logging.Logger.Errorf("failed refresh of repo %+v: %v", repo.Meta, err)
+			} else {
+				logging.Logger.Infof("succeeded with refresh of repo %+v", repo.Meta)
+			}
+		}
+
 		for _, repo := range repos {
 			for _, linter := range linters {
 				err := m.ManageOnce(ctx, repo, linter)
@@ -59,25 +67,6 @@ func (m Manager) ManageForever(ctx context.Context) {
 		}
 		return m.ScheduleDelay
 	})
-	refreshCh := timeout.RunForeverAsync("refresh", ctx, m.RefreshTimeout, func(ctx context.Context) time.Duration {
-		repos, err := m.RepoStorage.List(ctx)
-		if err != nil {
-			logging.Logger.Errorf("failed to fetch all repos: %v", err)
-			return m.ShortDelay
-		}
-		for _, repo := range repos {
-			err := m.RefreshRepo(ctx, repo)
-			if err != nil {
-				logging.Logger.Errorf("failed refresh of repo %+v: %v", repo.Meta, err)
-			} else {
-				logging.Logger.Errorf("succeeded with refresh of repo %+v: %v", repo.Meta)
-			}
-		}
-		return m.RefreshDelay
-	})
-
-	<-schedulerCh
-	<-refreshCh
 }
 
 func (m Manager) RefreshRepo(ctx context.Context, repo dto.Repo) error {

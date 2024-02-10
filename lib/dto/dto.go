@@ -23,7 +23,7 @@ type LinterInstance struct {
 }
 
 func (linter LinterInstance) String() string {
-	return fmt.Sprintf("[%v](%v@sha256%v)", linter.LinterId, linter.DockerImage, linter.DockerImageShaHash)
+	return fmt.Sprintf("[%v](%v@sha256:%v)", linter.LinterId, linter.DockerImage, linter.DockerImageShaHash)
 }
 
 type Repo struct {
@@ -69,9 +69,15 @@ type LintResult struct {
 	Highlights        []LintHighlightSnippet
 }
 
+type HighlightSnippet struct {
+	StartLine int
+	EndLine   int
+	Code      string
+}
+
 type LintHighlightSnippet struct {
 	LintHighlight
-	Snippet string
+	Snippet HighlightSnippet
 }
 
 type LintHighlight struct {

@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -67,7 +66,7 @@ func (l naiveLinting) Run(
 	if err != nil {
 		return nil, fmt.Errorf("%w: unable to get absolute path for directory %v: %w", LintTempErr, targetDir, err)
 	}
-	lines, err := l.DockerApi.Exec(ctx, linter.DockerImage, ContainerBindPath, targetDirAbs)
+	lines, err := l.DockerApi.Exec(ctx, fmt.Sprintf("%v@sha256:%v", linter.DockerImage, linter.DockerImageShaHash), ContainerBindPath, targetDirAbs)
 	if err != nil {
 		logging.Logger.Errorf("exec of the linter %v against repo %v failed: err=%v, elapsed=%v", linter, repo, err, time.Since(execStartTime))
 
@@ -119,25 +118,37 @@ func ExtractHighlightSnippets(targetDir string, highlights []dto.LintHighlight) 
 		if err != nil {
 			return nil, fmt.Errorf("unable to read file '%v': %w", fullPath, err)
 		}
-		scanner := bufio.NewScanner(bytes.NewReader(content))
-		lines := make([][]byte, 0)
-		for scanner.Scan() {
-			lines = append(lines, scanner.Bytes())
+		fileHighlightSnippets, err := ExtractHighlightSnippetsForFile(content, fileHighlights)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract snippets for file '%v': %w", fullPath, err)
 		}
-		for _, highlight := range fileHighlights {
-			if highlight.StartLine < 1 {
-				return nil, fmt.Errorf("invalid highlight lines: highlight=%+v", highlight)
-			}
-			if highlight.StartLine > len(lines) || highlight.EndLine > len(lines) {
-				return nil, fmt.Errorf("invalid highlight lines: highlight=%+v", highlight)
-			}
-			highlightSnippets = append(highlightSnippets, dto.LintHighlightSnippet{
-				LintHighlight: highlight,
-				Snippet:       string(bytes.Join(lines[highlight.StartLine-1:highlight.EndLine], []byte(`\n`))),
-			})
-		}
+		highlightSnippets = append(highlightSnippets, fileHighlightSnippets...)
 	}
 	return highlightSnippets, nil
+}
+
+func ExtractHighlightSnippetsForFile(content []byte, highlights []dto.LintHighlight) ([]dto.LintHighlightSnippet, error) {
+	snippets := make([]dto.LintHighlightSnippet, 0, len(highlights))
+	lines := bytes.Split(content, []byte("\n"))
+	for _, highlight := range highlights {
+		if highlight.StartLine < 1 {
+			return nil, fmt.Errorf("invalid highlight lines: highlight=%+v", highlight)
+		}
+		if highlight.StartLine > len(lines) || highlight.EndLine > len(lines) {
+			return nil, fmt.Errorf("invalid highlight lines: highlight=%+v", highlight)
+		}
+		startLine := max(0, highlight.StartLine-1-1)
+		endLine := min(len(lines), highlight.EndLine+1)
+		snippets = append(snippets, dto.LintHighlightSnippet{
+			LintHighlight: highlight,
+			Snippet: dto.HighlightSnippet{
+				StartLine: startLine + 1,
+				EndLine:   endLine,
+				Code:      string(bytes.Join(lines[startLine:endLine], []byte("\n"))),
+			},
+		})
+	}
+	return snippets, nil
 }
 
 func ExtractHighlights(rawLines []string) (highlights []dto.LintHighlight, skipped bool) {

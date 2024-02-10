@@ -84,6 +84,9 @@ func (p PgLintStorage) TryTake(ctx context.Context, lockTimeLowerBound time.Time
 	if !rows.Next() {
 		return dto.LintTask{}, NoTasksErr
 	}
+	if rows.Err() != nil {
+		return dto.LintTask{}, rows.Err()
+	}
 	var (
 		lintId              string
 		linterId            string
@@ -114,25 +117,29 @@ func (p PgLintStorage) TryTake(ctx context.Context, lockTimeLowerBound time.Time
 }
 
 func (p PgLintStorage) Set(ctx context.Context, lintTask dto.LintTask, lintResult dto.LintResult, lintedAt time.Time) error {
-	batch := &pgx.Batch{}
-	for _, highlight := range lintResult.Highlights {
-		batch.Queue(
-			lintHighlightsAddSql,
-			lintTask.LintId,
-			highlight.Path,
-			highlight.StartLine,
-			highlight.EndLine,
-			highlight.Explanation,
-			highlight.Snippet,
-		)
+	if len(lintResult.Highlights) > 0 {
+		batch := &pgx.Batch{}
+		for _, highlight := range lintResult.Highlights {
+			batch.Queue(
+				lintHighlightsAddSql,
+				lintTask.LintId,
+				highlight.Path,
+				highlight.StartLine,
+				highlight.EndLine,
+				highlight.Explanation,
+				highlight.Snippet.StartLine,
+				highlight.Snippet.EndLine,
+				highlight.Snippet.Code,
+			)
+		}
+		result := p.SendBatch(ctx, batch)
+		_, err := result.Exec()
+		_ = result.Close()
+		if err != nil {
+			return fmt.Errorf("failed to insert batch of %v highlights: %w", len(lintResult.Highlights), err)
+		}
 	}
-	result := p.SendBatch(ctx, batch)
-	_, err := result.Exec()
-	_ = result.Close()
-	if err != nil {
-		return fmt.Errorf("failed to insert batch of %v highlights: %w", len(lintResult.Highlights), err)
-	}
-	_, err = p.Exec(
+	_, err := p.Exec(
 		ctx,
 		lintTaskSetSql,
 		lintTask.LintId,
