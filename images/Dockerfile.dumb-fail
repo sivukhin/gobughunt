@@ -1,0 +1,6 @@
+FROM alpine:3.19
+
+RUN echo "exit 1" > run.sh
+RUN chmod +x run.sh
+
+ENTRYPOINT ["sh", "run.sh"]

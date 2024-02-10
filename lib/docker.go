@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -12,7 +13,17 @@ import (
 	"github.com/docker/docker/client"
 )
 
-func DockerExec(ctx context.Context, dockerImage string, containerBindPath, localBindPath string) ([]string, error) {
+type DockerApi interface {
+	Exec(ctx context.Context, dockerImage string, containerBindPath, localBindPath string) ([]string, error)
+}
+
+type naiveDockerApi struct{}
+
+var NaiveDockerApi = naiveDockerApi{}
+
+var DockerNonZeroExitCodeErr = errors.New("non zero exit code")
+
+func (_ naiveDockerApi) Exec(ctx context.Context, dockerImage string, containerBindPath, localBindPath string) ([]string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create docker client: %w", err)
@@ -59,7 +70,16 @@ func DockerExec(ctx context.Context, dockerImage string, containerBindPath, loca
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("unable to read stdout of container %v: %w", create.ID, err)
 	}
-	return lines, nil
+	statusC, errC := cli.ContainerWait(ctx, create.ID, container.WaitConditionNotRunning)
+	select {
+	case status := <-statusC:
+		if status.StatusCode != 0 {
+			return lines, fmt.Errorf("%w: %v", DockerNonZeroExitCodeErr, status.StatusCode)
+		}
+		return lines, nil
+	case err = <-errC:
+		return nil, err
+	}
 }
 
 type DockerStreamReader struct {
