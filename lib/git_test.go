@@ -12,11 +12,12 @@ import (
 	"github.com/sivukhin/gobughunt/lib/dto"
 )
 
-func TestCloneRepository(t *testing.T) {
+func TestFetchRepository(t *testing.T) {
 	t.Run("fetch branch", func(t *testing.T) {
 		d := t.TempDir()
-		err := NaiveGitApi.Clone(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{Branch: "master"}, d)
+		repo, err := NaiveGitApi.Fetch(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{Branch: "master"}, d)
 		require.Nil(t, err)
+		t.Log(repo)
 		{
 			stat, err := os.Stat(path.Join(d, "go.mod"))
 			require.Nil(t, err)
@@ -30,8 +31,9 @@ func TestCloneRepository(t *testing.T) {
 	})
 	t.Run("fetch commit hash", func(t *testing.T) {
 		d := t.TempDir()
-		err := NaiveGitApi.Clone(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{CommitHash: "a4d8a6fc86afcc1aa8c4c919d3073ee996eb139d"}, d)
+		repo, err := NaiveGitApi.Fetch(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{CommitHash: "a4d8a6fc86afcc1aa8c4c919d3073ee996eb139d"}, d)
 		require.Nil(t, err)
+		t.Log(repo)
 		{
 			stat, err := os.Stat(path.Join(d, "go.mod"))
 			require.Nil(t, err)

@@ -3,6 +3,8 @@ package lib
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/Microsoft/go-winio/pkg/guid"
@@ -15,67 +17,100 @@ import (
 )
 
 type Manager struct {
-	LinterStorage    storage.LinterStorage
-	RepoStorage      storage.RepoStorage
-	LintStorage      storage.LintStorage
-	DockerApi        DockerApi
-	GitApi           GitApi
-	IterationTimeout time.Duration
-	IterationDelay   time.Duration
+	LinterStorage   storage.LinterStorage
+	RepoStorage     storage.RepoStorage
+	LintStorage     storage.LintStorage
+	DockerApi       DockerApi
+	GitApi          GitApi
+	ScheduleTimeout time.Duration
+	ScheduleDelay   time.Duration
+	RefreshTimeout  time.Duration
+	RefreshDelay    time.Duration
+	ShortDelay      time.Duration
 }
 
 func (m Manager) ManageForever(ctx context.Context) {
-	logging.Logger.Infof("manager started: timeout=%v, delay=%v", m.IterationTimeout, m.IterationDelay)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		iterationCtx, cancel := context.WithTimeout(ctx, m.IterationTimeout)
-		err := m.ManageOnce(iterationCtx)
-		cancel()
-
+	logging.Logger.Infof("manager started: timeout=%v, delay=%v", m.ScheduleTimeout, m.ScheduleDelay)
+	schedulerCh := timeout.RunForeverAsync("scheduler", ctx, m.ScheduleTimeout, func(ctx context.Context) time.Duration {
+		allLinters, err := m.LinterStorage.List(ctx)
 		if err != nil {
-			logging.Logger.Errorf("failed single iteration, sleeping for %v: %v", m.IterationDelay, err)
-		} else {
-			logging.Logger.Infof("succeed with single iteration, sleeping for %v", m.IterationDelay)
+			logging.Logger.Errorf("failed to fetch all linters: %v", err)
+			return m.ShortDelay
 		}
-		timeout.SleepOrDone(ctx, m.IterationDelay)
-	}
-}
+		linters := allLinters.SelectWithInstances()
+		logging.Logger.Infof("found %v linters, %v with instances", len(allLinters), len(linters))
 
-func (m Manager) ManageOnce(ctx context.Context) error {
-	allLinters, err := m.LinterStorage.List(ctx)
-	if err != nil {
-		return err
-	}
-	linters := allLinters.SelectWithInstances()
-	logging.Logger.Infof("found %v linters, %v with instances", len(allLinters), len(linters))
-
-	allRepos, err := m.RepoStorage.List(ctx)
-	if err != nil {
-		return err
-	}
-	repos := allRepos.SelectWithInstances()
-	logging.Logger.Infof("found %v repos, %v with instances", len(allRepos), len(repos))
-
-	for _, linter := range linters {
-		if linter.Instance == nil {
-			continue
+		allRepos, err := m.RepoStorage.List(ctx)
+		if err != nil {
+			logging.Logger.Errorf("failed to fetch all repos: %v", err)
+			return m.ShortDelay
 		}
+		repos := allRepos.SelectWithInstances()
+		logging.Logger.Infof("found %v repos, %v with instances", len(allRepos), len(repos))
 		for _, repo := range repos {
-			lintId := utils.Must(guid.NewV4()).String()
-			lintTask := dto.LintTask{LintId: lintId, Linter: *linter.Instance, Repo: *repo.Instance}
-			err := m.LintStorage.TryAdd(ctx, lintTask, time.Now())
-			if errors.Is(err, storage.DuplicateTaskErr) {
-				continue
-			} else if err != nil {
-				logging.Logger.Errorf("failed to add task %+v: %v", lintTask, err)
-			} else {
-				logging.Logger.Infof("successfully added task %+v", lintTask)
+			for _, linter := range linters {
+				err := m.ManageOnce(ctx, repo, linter)
+				if err != nil {
+					logging.Logger.Errorf("failed single iteration: %v", err)
+				} else {
+					logging.Logger.Infof("succeed with single iteration")
+				}
 			}
 		}
+		return m.ScheduleDelay
+	})
+	refreshCh := timeout.RunForeverAsync("refresh", ctx, m.RefreshTimeout, func(ctx context.Context) time.Duration {
+		repos, err := m.RepoStorage.List(ctx)
+		if err != nil {
+			logging.Logger.Errorf("failed to fetch all repos: %v", err)
+			return m.ShortDelay
+		}
+		for _, repo := range repos {
+			err := m.RefreshRepo(ctx, repo)
+			if err != nil {
+				logging.Logger.Errorf("failed refresh of repo %+v: %v", repo.Meta, err)
+			} else {
+				logging.Logger.Errorf("succeeded with refresh of repo %+v: %v", repo.Meta)
+			}
+		}
+		return m.RefreshDelay
+	})
+
+	<-schedulerCh
+	<-refreshCh
+}
+
+func (m Manager) RefreshRepo(ctx context.Context, repo dto.Repo) error {
+	targetDir, err := os.MkdirTemp(".", "repo_clone_*")
+	if err != nil {
+		return fmt.Errorf("mkdir temp failed: %w", err)
+	}
+	defer os.Remove(targetDir)
+	info, err := m.GitApi.Fetch(ctx, repo.Meta.RepoGitUrl, dto.GitRef{Branch: repo.Meta.RepoGitBranch}, targetDir)
+	if err != nil {
+		return fmt.Errorf("failed to fetch repo %v: %w", repo, err)
+	}
+	return m.RepoStorage.AddOrUpdate(ctx, dto.Repo{
+		Meta: repo.Meta,
+		Instance: &dto.RepoInstance{
+			RepoId:        repo.Meta.RepoId,
+			GitUrl:        repo.Meta.RepoGitUrl,
+			GitCommitHash: info.CommitHash,
+		},
+	}, time.Now())
+}
+
+func (m Manager) ManageOnce(ctx context.Context, repo dto.Repo, linter dto.Linter) error {
+	lintId := utils.Must(guid.NewV4()).String()
+	lintTask := dto.LintTask{LintId: lintId, Linter: *linter.Instance, Repo: *repo.Instance}
+	err := m.LintStorage.TryAdd(ctx, lintTask, time.Now())
+	if errors.Is(err, storage.DuplicateTaskErr) {
+		return nil
+	} else if err != nil {
+		logging.Logger.Errorf("failed to add task %+v: %v", lintTask, err)
+		return err
+	} else {
+		logging.Logger.Infof("successfully added task %+v", lintTask)
 	}
 	return nil
 }

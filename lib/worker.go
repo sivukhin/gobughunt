@@ -28,27 +28,19 @@ func (w Worker) RunForever(ctx context.Context) {
 		w.IterationLongDelay,
 		w.LockDuration,
 	)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-		iterationCtx, cancel := context.WithTimeout(ctx, w.IterationTimeout)
-		err := w.RunOnce(iterationCtx)
-		cancel()
-
+	<-timeout.RunForeverAsync("worker", ctx, w.IterationTimeout, func(ctx context.Context) time.Duration {
+		err := w.RunOnce(ctx)
 		if errors.Is(err, storage.NoTasksErr) {
 			logging.Logger.Infof("no ready tasks found, sleeping for %v", w.IterationLongDelay)
-			timeout.SleepOrDone(ctx, w.IterationLongDelay)
+			return w.IterationLongDelay
 		} else if err != nil {
 			logging.Logger.Errorf("failed single iteration, sleeping for %v: %v", w.IterationShortDelay, err)
-			timeout.SleepOrDone(ctx, w.IterationShortDelay)
+			return w.IterationShortDelay
 		} else {
 			logging.Logger.Infof("succeed with single iteration, sleeping for %v", w.IterationShortDelay)
-			timeout.SleepOrDone(ctx, w.IterationShortDelay)
+			return w.IterationShortDelay
 		}
-	}
+	})
 }
 
 func (w Worker) RunOnce(ctx context.Context) error {

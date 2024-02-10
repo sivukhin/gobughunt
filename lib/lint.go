@@ -54,7 +54,7 @@ func (l naiveLinting) Run(
 	defer os.RemoveAll(targetDir)
 
 	cloneStartTime := time.Now()
-	err = l.GitApi.Clone(ctx, repo.GitUrl, dto.GitRef{CommitHash: repo.GitCommitHash}, targetDir)
+	_, err = l.GitApi.Fetch(ctx, repo.GitUrl, dto.GitRef{CommitHash: repo.GitCommitHash}, targetDir)
 	if err != nil {
 		logging.Logger.Errorf("clone of repo %v to the directory %v failed: err=%v, elapsed=%v", repo, targetDir, err, time.Since(cloneStartTime))
 		return nil, fmt.Errorf("%w: clone of repo %v failed: %w", LintCloneErr, repo, err)

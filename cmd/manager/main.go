@@ -28,13 +28,13 @@ func main() {
 	}
 
 	manager := lib.Manager{
-		LinterStorage:    storage.PgLinterStorage(pgStorage),
-		RepoStorage:      storage.PgRepoStorage(pgStorage),
-		LintStorage:      storage.PgLintStorage(pgStorage),
-		DockerApi:        lib.NaiveDockerApi,
-		GitApi:           lib.NaiveGitApi,
-		IterationTimeout: iterationTimeout,
-		IterationDelay:   iterationDelay,
+		LinterStorage:   storage.PgLinterStorage(pgStorage),
+		RepoStorage:     storage.PgRepoStorage(pgStorage),
+		LintStorage:     storage.PgLintStorage(pgStorage),
+		DockerApi:       lib.NaiveDockerApi,
+		GitApi:          lib.NaiveGitApi,
+		ScheduleTimeout: iterationTimeout,
+		ScheduleDelay:   iterationDelay,
 	}
 	manager.ManageForever(signalsCtx)
 }
