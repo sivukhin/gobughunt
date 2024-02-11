@@ -7,7 +7,7 @@
 </script>
 
 <h2 style="text-align: left">lint tasks</h2>
-{#await load(0, 10)}
+{#await load(0, 100)}
     <p>loading</p>
 {:then items}
     <table>
@@ -18,16 +18,16 @@
             <th style="text-align: left">duration</th>
         </tr>
         {#each items as item}
-            <tr class="link" on:click={() => navigate(`/highlights/${item.id}`)}>
+            <tr class="link" on:click={() => navigate(`/highlights?lintId=${item.id}`)}>
                 <td style="text-align: left">{item.linter.id}</td>
                 <td style="text-align: left">{item.repo.id}</td>
                 <td style="text-align: left" class={`${item.status} highlight`}>
                     {item.status}
-                    {#if item.statusComment !== ""}
+                    {#if item.statusComment !== null && item.statusComment !== ""}
                         (<span class="comment" title={item.statusComment}>{item.statusComment}</span>)
                     {/if}
                 </td>
-                <td style="text-align: left">{`${item.lintDurationSec.toFixed(2)}`} sec.</td>
+                <td style="text-align: left">{`${item.lintDurationSec != null ? `${item.lintDurationSec.toFixed(2)} sec.` : ""}`}</td>
             </tr>
         {/each}
     </table>

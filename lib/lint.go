@@ -50,7 +50,12 @@ func (l naiveLinting) Run(
 	if err != nil {
 		return nil, fmt.Errorf("%w: mkdir temp failed: %w", LintTempErr, err)
 	}
-	defer os.RemoveAll(targetDir)
+	defer func() {
+		err := os.RemoveAll(targetDir)
+		if err != nil {
+			logging.Logger.Errorf("failed to remove temp dir %v: %v", targetDir, err)
+		}
+	}()
 
 	cloneStartTime := time.Now()
 	_, err = l.GitApi.Fetch(ctx, repo.GitUrl, dto.GitRef{CommitHash: repo.GitCommitHash}, targetDir)
@@ -64,7 +69,7 @@ func (l naiveLinting) Run(
 	execStartTime := time.Now()
 	targetDirAbs, err := filepath.Abs(targetDir)
 	if err != nil {
-		return nil, fmt.Errorf("%w: unable to get absolute path for directory %v: %w", LintTempErr, targetDir, err)
+		return nil, fmt.Errorf("%w: unable to get absolute path for directory %v: %w", LintExecErr, targetDir, err)
 	}
 	lines, err := l.DockerApi.Exec(ctx, fmt.Sprintf("%v@sha256:%v", linter.DockerImage, linter.DockerImageShaHash), ContainerBindPath, targetDirAbs)
 	if err != nil {
@@ -73,7 +78,7 @@ func (l naiveLinting) Run(
 		if errors.Is(err, DockerNonZeroExitCodeErr) {
 			return nil, fmt.Errorf("%w: linter %v exited with non-zero code: %w", LintExecErr, linter, err)
 		}
-		return nil, fmt.Errorf("%w: %w", LintTempErr, err)
+		return nil, fmt.Errorf("%w: %w", LintExecErr, err)
 	} else {
 		logging.Logger.Infof("exec of the linter %v against repo %v succeed: elapsed=%v", linter, repo, time.Since(execStartTime))
 	}

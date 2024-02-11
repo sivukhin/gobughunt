@@ -43,8 +43,6 @@ func (m Manager) ManageForever(ctx context.Context) {
 			logging.Logger.Errorf("failed to fetch all repos: %v", err)
 			return m.ShortDelay
 		}
-		repos := allRepos.SelectWithInstances()
-		logging.Logger.Infof("found %v repos, %v with instances", len(allRepos), len(repos))
 
 		for _, repo := range allRepos {
 			err := m.RefreshRepo(ctx, repo)
@@ -54,6 +52,14 @@ func (m Manager) ManageForever(ctx context.Context) {
 				logging.Logger.Infof("succeeded with refresh of repo %+v", repo.Meta)
 			}
 		}
+
+		allRepos, err = m.RepoStorage.List(ctx)
+		if err != nil {
+			logging.Logger.Errorf("failed to fetch all repos: %v", err)
+			return m.ShortDelay
+		}
+		repos := allRepos.SelectWithInstances()
+		logging.Logger.Infof("found %v repos, %v with instances", len(allRepos), len(repos))
 
 		for _, repo := range repos {
 			for _, linter := range linters {

@@ -10,13 +10,9 @@ import (
 )
 
 type StatDto struct {
-	TotalHighlight         int `json:"totalHighlight"`
 	TotalHighlightDedup    int `json:"totalHighlightDedup"`
-	PendingHighlight       int `json:"pendingHighlight"`
 	PendingHighlightDedup  int `json:"pendingHighlightDedup"`
-	RejectedHighlight      int `json:"rejectedHighlight"`
 	RejectedHighlightDedup int `json:"rejectedHighlightDedup"`
-	AcceptedHighlight      int `json:"acceptedHighlight"`
 	AcceptedHighlightDedup int `json:"acceptedHighlightDedup"`
 }
 
@@ -40,7 +36,7 @@ type RepoDto struct {
 type LintTaskDto struct {
 	Id              string    `json:"id"`
 	Status          string    `json:"status"`
-	StatusComment   string    `json:"statusComment"`
+	StatusComment   *string   `json:"statusComment"`
 	LintDurationSec *float64  `json:"lintDurationSec"`
 	Linter          LinterDto `json:"linter"`
 	Repo            RepoDto   `json:"repo"`
@@ -63,11 +59,17 @@ type LintHighlightDto struct {
 	Snippet     HighlightSnippetDto `json:"snippet"`
 }
 
+type LintHighlightsFilter struct {
+	LintId   string
+	LinterId string
+	RepoId   string
+}
+
 type BugHuntStorage interface {
 	Linters(ctx context.Context) ([]LinterDto, error)
 	Repos(ctx context.Context) ([]RepoDto, error)
 	LintTasks(ctx context.Context, skip int, take int) ([]LintTaskDto, error)
-	LintHighlights(ctx context.Context, lintId string) ([]LintHighlightDto, error)
+	LintHighlights(ctx context.Context, filter LintHighlightsFilter) ([]LintHighlightDto, error)
 	ModerateHighlight(ctx context.Context, lintId string, highlight dto.LintHighlight, status string) error
 }
 
@@ -103,13 +105,9 @@ func (b PgBugHuntStorage) Linters(ctx context.Context) ([]LinterDto, error) {
 			linterGitBranch         string
 			linterLastDockerImage   *string
 			linterLastDockerShaHash *string
-			totalHighlight          int
 			totalHighlightDedup     int
-			pendingHighlight        int
 			pendingHighlightDedup   int
-			rejectedHighlight       int
 			rejectedHighlightDedup  int
-			acceptedHighlight       int
 			acceptedHighlightDedup  int
 		)
 		err = rows.Scan(
@@ -118,13 +116,9 @@ func (b PgBugHuntStorage) Linters(ctx context.Context) ([]LinterDto, error) {
 			&linterGitBranch,
 			&linterLastDockerImage,
 			&linterLastDockerShaHash,
-			&totalHighlight,
 			&totalHighlightDedup,
-			&pendingHighlight,
 			&pendingHighlightDedup,
-			&rejectedHighlight,
 			&rejectedHighlightDedup,
-			&acceptedHighlight,
 			&acceptedHighlightDedup,
 		)
 		if err != nil {
@@ -136,13 +130,10 @@ func (b PgBugHuntStorage) Linters(ctx context.Context) ([]LinterDto, error) {
 			GitBranch:          linterGitBranch,
 			DockerImage:        linterLastDockerImage,
 			DockerImageShaHash: linterLastDockerShaHash,
-			StatDto: &StatDto{TotalHighlight: totalHighlight,
+			StatDto: &StatDto{
 				TotalHighlightDedup:    totalHighlightDedup,
-				PendingHighlight:       pendingHighlight,
 				PendingHighlightDedup:  pendingHighlightDedup,
-				RejectedHighlight:      rejectedHighlight,
 				RejectedHighlightDedup: rejectedHighlightDedup,
-				AcceptedHighlight:      acceptedHighlight,
 				AcceptedHighlightDedup: acceptedHighlightDedup,
 			},
 		})
@@ -165,13 +156,9 @@ func (b PgBugHuntStorage) Repos(ctx context.Context) ([]RepoDto, error) {
 			repoGitUrl             string
 			repoGitBranch          string
 			repoLastGitCommitHash  *string
-			totalHighlight         int
 			totalHighlightDedup    int
-			pendingHighlight       int
 			pendingHighlightDedup  int
-			rejectedHighlight      int
 			rejectedHighlightDedup int
-			acceptedHighlight      int
 			acceptedHighlightDedup int
 		)
 		err = rows.Scan(
@@ -179,13 +166,9 @@ func (b PgBugHuntStorage) Repos(ctx context.Context) ([]RepoDto, error) {
 			&repoGitUrl,
 			&repoGitBranch,
 			&repoLastGitCommitHash,
-			&totalHighlight,
 			&totalHighlightDedup,
-			&pendingHighlight,
 			&pendingHighlightDedup,
-			&rejectedHighlight,
 			&rejectedHighlightDedup,
-			&acceptedHighlight,
 			&acceptedHighlightDedup,
 		)
 		if err != nil {
@@ -197,13 +180,9 @@ func (b PgBugHuntStorage) Repos(ctx context.Context) ([]RepoDto, error) {
 			GitBranch:     repoGitBranch,
 			GitCommitHash: repoLastGitCommitHash,
 			StatDto: &StatDto{
-				TotalHighlight:         totalHighlight,
 				TotalHighlightDedup:    totalHighlightDedup,
-				PendingHighlight:       pendingHighlight,
 				PendingHighlightDedup:  pendingHighlightDedup,
-				RejectedHighlight:      rejectedHighlight,
 				RejectedHighlightDedup: rejectedHighlightDedup,
-				AcceptedHighlight:      acceptedHighlight,
 				AcceptedHighlightDedup: acceptedHighlightDedup,
 			},
 		})
@@ -233,7 +212,7 @@ func (b PgBugHuntStorage) LintTasks(ctx context.Context, skip int, take int) ([]
 			linterDockerShaHash string
 			lintId              string
 			lintStatus          string
-			lintStatusComment   string
+			lintStatusComment   *string
 			lintDuration        *time.Duration
 		)
 		err = rows.Scan(
@@ -285,8 +264,8 @@ func (b PgBugHuntStorage) LintTasks(ctx context.Context, skip int, take int) ([]
 	return lintTasks, nil
 }
 
-func (b PgBugHuntStorage) LintHighlights(ctx context.Context, lintId string) ([]LintHighlightDto, error) {
-	rows, err := b.Query(ctx, bugHuntLintHighlightsSql, lintId)
+func (b PgBugHuntStorage) LintHighlights(ctx context.Context, filter LintHighlightsFilter) ([]LintHighlightDto, error) {
+	rows, err := b.Query(ctx, bugHuntLintHighlightsSql, filter.LintId, filter.LinterId, filter.RepoId)
 	if err != nil {
 		return nil, err
 	}
@@ -305,6 +284,7 @@ func (b PgBugHuntStorage) LintHighlights(ctx context.Context, lintId string) ([]
 			lintStatus          string
 			lintStatusComment   *string
 			lintDuration        *time.Duration
+			id                  string
 			path                string
 			startLine           int
 			endLine             int
@@ -329,6 +309,7 @@ func (b PgBugHuntStorage) LintHighlights(ctx context.Context, lintId string) ([]
 			&lintStatus,
 			&lintStatusComment,
 			&lintDuration,
+			&id,
 			&path,
 			&startLine,
 			&endLine,

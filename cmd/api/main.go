@@ -74,10 +74,12 @@ func main() {
 	server.Handle("/api/lint-highlights", wrap(func(request *http.Request) ([]storage.LintHighlightDto, error) {
 		params := request.URL.Query()
 		lintId := params.Get("lintId")
-		if lintId == "" {
-			return nil, fmt.Errorf("lintId required")
+		repoId := params.Get("repoId")
+		linterId := params.Get("linterId")
+		if lintId == "" && repoId == "" && linterId == "" {
+			return nil, fmt.Errorf("one of three parameters should be set: lintId, repoId, linterId")
 		}
-		return bugHuntStorage.LintHighlights(request.Context(), lintId)
+		return bugHuntStorage.LintHighlights(request.Context(), storage.LintHighlightsFilter{LintId: lintId, RepoId: repoId, LinterId: linterId})
 	}))
 	server.Handle("/api/lint-highlights/moderate", wrap(func(request *http.Request) (struct{}, error) {
 		params := request.URL.Query()

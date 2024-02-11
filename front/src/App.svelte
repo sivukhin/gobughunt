@@ -25,8 +25,8 @@
         <Route path="/" component={Dashboard}/>
         <Route path="/tasks" component={Tasks}/>
         <Route path="/about" component={About}/>
-        <Route path="/highlights/:lintId" let:params>
-            <Highlights lintId="{params.lintId}"/>
+        <Route path="/highlights">
+            <Highlights/>
         </Route>
     </main>
 </Router>

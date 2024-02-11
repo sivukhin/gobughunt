@@ -15,7 +15,5 @@ CREATE TABLE IF NOT EXISTS lint_highlights
 
     moderation_status  HighlightStatus NOT NULL DEFAULT 'pending',
     moderation_comment TEXT,
-    moderated_at       TIMESTAMP,
-
-    CONSTRAINT fk_lint_id FOREIGN KEY (lint_id) REFERENCES lint_tasks (lint_id)
+    moderated_at       TIMESTAMP
 );

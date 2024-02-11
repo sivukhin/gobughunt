@@ -14,5 +14,6 @@ SELECT repos.repo_id,
 FROM lint_tasks as lint_tasks
          JOIN linters as linters ON linters.linter_id = lint_tasks.linter_id
          JOIN repos as repos ON repos.repo_id = lint_tasks.repo_id
-ORDER BY lint_tasks.created_at DESC
+ORDER BY lint_tasks.lint_status,
+         lint_tasks.created_at DESC
 LIMIT $2 OFFSET $1
