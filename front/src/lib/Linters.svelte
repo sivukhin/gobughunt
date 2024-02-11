@@ -1,8 +1,9 @@
 <script lang="ts">
     import {navigate} from "svelte-routing";
+    import {ApiUrl} from "./Route";
 
     async function load() {
-        return await (await fetch("http://localhost:3000/api/linters")).json()
+        return await (await fetch(`${ApiUrl}/api/linters`)).json()
     }
 </script>
 

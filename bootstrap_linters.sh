@@ -1,2 +1,2 @@
 ./out/tool ./cmd/tool/linter_add.sql sivukhin/govanish https://github.com/sivukhin/govanish master docker.io/sivukhinnikita/govanish:8.0.0 4257681aec436662049ed919c9aa2e8028e59e647efa4c996495a308c48dd77d
-./out/tool ./cmd/tool/linter_add.sql uber-go/nilaway https://github.com/uber-go/nilaway main docker.io/sivukhinnikita/nilaway:4.0.0 8639b178ae41861765a8149f298353bcac36de4b9e1de3bfe175d92953591fd0
+./out/tool ./cmd/tool/linter_add.sql uber-go/nilaway https://github.com/uber-go/nilaway main docker.io/sivukhinnikita/nilaway:5.0.0 5f7607e74037855095a9fb2501ae5c966dab4807fd9a8a188fbfccf5d5ae5425

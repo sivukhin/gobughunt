@@ -3,7 +3,6 @@ package lib
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/sivukhin/gobughunt/lib/dto"
@@ -13,74 +12,84 @@ import (
 )
 
 type Worker struct {
-	LintStorage           storage.LintStorage
-	DockerApi             DockerApi
-	Linting               Linting
-	IterationTimeout      time.Duration
-	IterationFailDelay    time.Duration
-	IterationSuccessDelay time.Duration
-	LockDuration          time.Duration
+	LintStorage    storage.LintStorage
+	DockerApi      DockerApi
+	Linting        Linting
+	IterationDelay time.Duration
+	CleanupTimeout time.Duration
+	TakeTimeout    time.Duration
+	LintTimeout    time.Duration
+	UpdateTimeout  time.Duration
+	LockDuration   time.Duration
 }
 
 func (w Worker) RunForever(ctx context.Context) {
 	logging.Logger.Infof(
-		"worker started: timeout=%v, shortDelay=%v, longDelay=%v, lockDuration=%v",
-		w.IterationTimeout,
-		w.IterationFailDelay,
-		w.IterationSuccessDelay,
+		"worker started: iterationDelay=%v, cleanupTimeout=%v, takeTimeout=%v, lintTimeout=%v, updateTimeout=%v, lockDuration=%v",
+		w.IterationDelay,
+		w.CleanupTimeout,
+		w.TakeTimeout,
+		w.LintTimeout,
+		w.UpdateTimeout,
 		w.LockDuration,
 	)
-	periodic := timeout.Periodic(ctx, w.IterationFailDelay, w.IterationSuccessDelay)
-	worker := timeout.Process("worker", periodic, w.IterationTimeout, func(ctx context.Context, _ struct{}, next func(struct{})) error {
-		err := w.RunOnce(ctx)
-		if err != nil && !errors.Is(err, storage.NoTasksErr) {
-			return fmt.Errorf("failed single iteration: %w", err)
-		} else if errors.Is(err, storage.NoTasksErr) {
-			logging.Logger.Infof("no ready tasks found")
+	periodic := timeout.Periodic(ctx, w.IterationDelay, w.IterationDelay)
+	cleanup := timeout.Process("cleanup", periodic, w.CleanupTimeout, func(ctx context.Context, item struct{}, next func(struct{})) error {
+		err := w.DockerApi.Cleanup(ctx)
+		if err != nil {
+			logging.Logger.Errorf("failed to cleanup docker: %v", err)
 		} else {
-			logging.Logger.Infof("succeed with single iteration")
+			next(struct{}{})
 		}
+		return err
+	})
+	take := timeout.Process("take", cleanup, w.TakeTimeout, func(ctx context.Context, _ struct{}, next func(task dto.LintTask)) error {
+		logging.Logger.Infof("worker run single iteration")
+		now := time.Now()
+		lintTask, err := w.LintStorage.TryTake(ctx, now.Add(-w.LockDuration), now)
+		if err != nil {
+			return err
+		}
+		logging.Logger.Infof("took single lint task: %+v", lintTask)
+		next(lintTask)
 		return nil
 	})
-	timeout.Close(worker)
-}
-
-func (w Worker) RunOnce(ctx context.Context) error {
-	logging.Logger.Infof("worker run single iteration")
-	now := time.Now()
-	lintTask, err := w.LintStorage.TryTake(ctx, now.Add(-w.LockDuration), now)
-	if err != nil {
-		return err
+	type lintResult struct {
+		task       dto.LintTask
+		highlights []dto.LintHighlightSnippet
+		duration   time.Duration
+		err        error
 	}
-	logging.Logger.Infof("took single lint task: %+v", lintTask)
-
-	err = w.DockerApi.Cleanup(ctx)
-	if err != nil {
-		logging.Logger.Errorf("failed to cleanup docker: %v", err)
-	}
-
-	startLintTime := time.Now()
-	highlights, err := w.Linting.Run(ctx, lintTask.Repo, lintTask.Linter)
-	if errors.Is(err, LintSkippedErr) {
-		return w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-			Status:   dto.Skipped,
-			Duration: time.Since(startLintTime),
-		}, time.Now())
-	} else if errors.Is(err, LintTempErr) {
-		return errors.Join(err, w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-			Status:   dto.Pending,
-			Duration: time.Since(startLintTime),
-		}, time.Now()))
-	} else if err != nil {
-		return errors.Join(err, w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-			Status:        dto.Failed,
-			StatusComment: err.Error(),
-			Duration:      time.Since(startLintTime),
-		}, time.Now()))
-	}
-	return w.LintStorage.Set(ctx, lintTask, dto.LintResult{
-		Status:     dto.Succeed,
-		Duration:   time.Since(startLintTime),
-		Highlights: highlights,
-	}, now)
+	lint := timeout.Process("lint", take, w.LintTimeout, func(ctx context.Context, item dto.LintTask, next func(result lintResult)) error {
+		startTime := time.Now()
+		highlights, err := w.Linting.Run(ctx, item.Repo, item.Linter)
+		next(lintResult{task: item, highlights: highlights, err: err, duration: time.Since(startTime)})
+		return nil
+	})
+	update := timeout.Process("update", lint, w.UpdateTimeout, func(ctx context.Context, item lintResult, next func(struct{})) error {
+		now := time.Now()
+		if errors.Is(item.err, LintSkippedErr) {
+			return w.LintStorage.Set(ctx, item.task, dto.LintResult{
+				Status:   dto.Skipped,
+				Duration: item.duration,
+			}, now)
+		} else if errors.Is(item.err, LintTempErr) {
+			return errors.Join(item.err, w.LintStorage.Set(ctx, item.task, dto.LintResult{
+				Status:   dto.Pending,
+				Duration: item.duration,
+			}, now))
+		} else if item.err != nil {
+			return errors.Join(item.err, w.LintStorage.Set(ctx, item.task, dto.LintResult{
+				Status:        dto.Failed,
+				StatusComment: item.err.Error(),
+				Duration:      item.duration,
+			}, now))
+		}
+		return w.LintStorage.Set(ctx, item.task, dto.LintResult{
+			Status:     dto.Succeed,
+			Duration:   item.duration,
+			Highlights: item.highlights,
+		}, now)
+	})
+	timeout.Close(update)
 }

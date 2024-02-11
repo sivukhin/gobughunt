@@ -1,18 +1,19 @@
 <script lang="ts">
     import Snippet from "./Snippet.svelte";
+    import {ApiUrl} from "./Route";
 
     async function load() {
         if (lintId != null) {
-            return await (await fetch(`http://localhost:3000/api/lint-highlights?lintId=${lintId}`)).json()
+            return await (await fetch(`${ApiUrl}/api/lint-highlights?lintId=${lintId}`)).json()
         } else if (repoId != null) {
-            return await (await fetch(`http://localhost:3000/api/lint-highlights?repoId=${repoId}`)).json()
+            return await (await fetch(`${ApiUrl}/api/lint-highlights?repoId=${repoId}`)).json()
         } else if (linterId != null) {
-            return await (await fetch(`http://localhost:3000/api/lint-highlights?linterId=${linterId}`)).json()
+            return await (await fetch(`${ApiUrl}/api/lint-highlights?linterId=${linterId}`)).json()
         }
     }
 
     async function moderate(path: string, startLine: number, endLine: number, status: string) {
-        await fetch(`http://localhost:3000/api/lint-highlights/moderate?lintId=${lintId}&path=${path}&startLine=${startLine}&endLine=${endLine}&status=${status}`)
+        await fetch(`${ApiUrl}/api/lint-highlights/moderate?lintId=${lintId}&path=${path}&startLine=${startLine}&endLine=${endLine}&status=${status}`)
     }
 
     const urlParams = new URLSearchParams(window.location.search);

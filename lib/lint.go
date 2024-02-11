@@ -16,7 +16,7 @@ import (
 	"github.com/sivukhin/gobughunt/lib/logging"
 )
 
-const ContainerBindPath = "/src"
+const ContainerBindPath = "/home/repo"
 
 type NaiveLinting struct {
 	TempDir   string

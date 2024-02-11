@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -36,16 +37,29 @@ func (_ NaiveDockerApi) Cleanup(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("unable to create docker client: %w", err)
 	}
+	containerReport, err := cli.ContainersPrune(ctx, filters.NewArgs())
+	if err != nil {
+		return err
+	}
+	logging.Logger.Infof("containers pruned: reclaimed %v bytes", containerReport.SpaceReclaimed)
+
 	cacheReport, err := cli.BuildCachePrune(ctx, types.BuildCachePruneOptions{All: true})
 	if err != nil {
 		return err
 	}
 	logging.Logger.Infof("build cache pruned: reclaimed %v bytes", cacheReport.SpaceReclaimed)
+
 	volumesReport, err := cli.VolumesPrune(ctx, filters.NewArgs())
 	if err != nil {
 		return err
 	}
 	logging.Logger.Infof("volumes pruned: reclaimed %v bytes", volumesReport.SpaceReclaimed)
+
+	imagesReport, err := cli.ImagesPrune(ctx, filters.NewArgs())
+	if err != nil {
+		return err
+	}
+	logging.Logger.Infof("images pruned: reclaimed %v bytes", imagesReport.SpaceReclaimed)
 	return nil
 }
 
@@ -86,6 +100,11 @@ func (d NaiveDockerApi) Exec(
 	if err != nil {
 		return nil, fmt.Errorf("unable to create container for image %v: %w", dockerImage, err)
 	}
+	defer func() {
+		killCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // todo (sivukhin, 2024-02-11): how to avoid this hard-coded timeout,
+		defer cancel()
+		_ = cli.ContainerKill(killCtx, create.ID, "SIGKILL") // cleanup - we can ignore error
+	}()
 	attach, err := cli.ContainerAttach(ctx, create.ID, types.ContainerAttachOptions{
 		Stream: true,
 		Stderr: true,

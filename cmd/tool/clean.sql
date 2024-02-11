@@ -1,1 +1,1 @@
-TRUNCATE TABLE lint_tasks;
+TRUNCATE TABLE lint_highlights;

@@ -1,9 +1,6 @@
-./out/tool ./cmd/tool/repo_add.sql golang/go https://github.com/golang/go master
-./out/tool ./cmd/tool/repo_add.sql kubernetes/kubernetes https://github.com/kubernetes/kubernetes master
 ./out/tool ./cmd/tool/repo_add.sql fatedier/frp https://github.com/fatedier/frp dev
 ./out/tool ./cmd/tool/repo_add.sql gin-gonic/gin https://github.com/gin-gonic/gin master
 ./out/tool ./cmd/tool/repo_add.sql gohugoio/hugo https://github.com/gohugoio/hugo master
-./out/tool ./cmd/tool/repo_add.sql moby/moby https://github.com/moby/moby master
 ./out/tool ./cmd/tool/repo_add.sql syncthing/syncthing https://github.com/syncthing/syncthing main
 ./out/tool ./cmd/tool/repo_add.sql junegunn/fzf https://github.com/junegunn/fzf master
 ./out/tool ./cmd/tool/repo_add.sql caddyserver/caddy https://github.com/caddyserver/caddy master
@@ -43,7 +40,6 @@
 ./out/tool ./cmd/tool/repo_add.sql hashicorp/vault https://github.com/hashicorp/vault main
 ./out/tool ./cmd/tool/repo_add.sql cockroachdb/cockroach https://github.com/cockroachdb/cockroach master
 ./out/tool ./cmd/tool/repo_add.sql ehang-io/nps https://github.com/ehang-io/nps master
-./out/tool ./cmd/tool/repo_add.sql kubernetes/minikube https://github.com/kubernetes/minikube master
 ./out/tool ./cmd/tool/repo_add.sql labstack/echo https://github.com/labstack/echo master
 ./out/tool ./cmd/tool/repo_add.sql hashicorp/consul https://github.com/hashicorp/consul main
 ./out/tool ./cmd/tool/repo_add.sql zeromicro/go-zero https://github.com/zeromicro/go-zero master

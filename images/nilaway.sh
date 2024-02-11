@@ -14,5 +14,5 @@ then
 fi
 mod=$(cat go.mod | grep '^module ' | grep -o '[^ ]*$')
 result=$(nilaway -pretty-print=false $mod 2>&1 | perl -pe "s/^([^\s]+):(\d+):(\d+):/::error file=\1,line=\2::/g")
-replaced=${result/$(pwd)\//}
+replaced="${result//$(pwd)\//}"
 echo "$replaced"

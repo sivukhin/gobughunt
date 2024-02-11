@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/sivukhin/gobughunt/lib/dto"
 	"github.com/sivukhin/gobughunt/lib/logging"
@@ -17,11 +18,28 @@ var (
 	connectionDuration = utils.EnvMustParseDurationSec("CONNECTION_DURATION_SEC")
 	connectionString   = utils.EnvMustParseString("CONNECTION_STRING")
 	serverLocal        = utils.EnvTryParseBool("SERVER_LOCAL")
+	serverUser         = utils.EnvMustParseString("SERVER_USER")
+	serverPass         = utils.EnvMustParseString("SERVER_PASS")
 )
+
+func basicAuth(writer http.ResponseWriter, request *http.Request) bool {
+	if serverLocal {
+		return true
+	}
+	user, pass, ok := request.BasicAuth()
+	if !ok || user != serverUser || pass != serverPass {
+		writer.Header().Set("WWW-Authenticate", "Basic realm=\"Access to the gobughunt\"")
+		writer.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+	return true
+}
 
 func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
-
+		if !basicAuth(writer, request) {
+			return
+		}
 		result, err := handle(request)
 		if err != nil {
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -33,11 +51,11 @@ func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc
 			writer.WriteHeader(http.StatusInsufficientStorage)
 			_, _ = writer.Write([]byte(err.Error()))
 		}
-		writer.Header().Set("Content-Type", "application/json")
 		if serverLocal {
 			writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5000")
 			writer.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
 		}
+		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write(response)
 	}
@@ -55,7 +73,6 @@ func main() {
 	bugHuntStorage := storage.PgBugHuntStorage(pgStorage)
 
 	server := http.NewServeMux()
-	server.Handle("/", http.FileServer(http.Dir("./static")))
 	server.HandleFunc("/api/linters", wrap(func(request *http.Request) ([]storage.LinterDto, error) {
 		return bugHuntStorage.Linters(request.Context())
 	}))
@@ -72,7 +89,7 @@ func main() {
 		if err != nil {
 			return nil, err
 		}
-		take = max(1, min(take, skip+100))
+		take = max(1, min(take, skip+1000))
 		return bugHuntStorage.LintTasks(request.Context(), skip, take)
 	}))
 	server.Handle("/api/lint-highlights", wrap(func(request *http.Request) ([]storage.LintHighlightDto, error) {
@@ -122,6 +139,15 @@ func main() {
 		}
 		return struct{}{}, bugHuntStorage.ModerateHighlight(request.Context(), lintId, highlight, status)
 	}))
+	server.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		if !basicAuth(writer, request) {
+			return
+		}
+		if !strings.HasPrefix(request.URL.Path, "/assets") {
+			request.URL.Path = "/"
+		}
+		http.FileServer(http.Dir("./static")).ServeHTTP(writer, request)
+	})
 
 	err = http.ListenAndServe(":3000", server)
 	if err != nil {

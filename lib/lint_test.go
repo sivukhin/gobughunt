@@ -40,13 +40,13 @@ func TestDumb(t *testing.T) {
 func TestLint(t *testing.T) {
 	repo := dto.RepoInstance{
 		Id:            "test-repo",
-		GitUrl:        "https://github.com/gin-gonic/gin",
-		GitCommitHash: "bb3519d26f52835cf00e5e430b52651a9c378c97",
+		GitUrl:        "https://github.com/gocolly/colly",
+		GitCommitHash: "3c987f1982edbb5ba8876eef56dd35e1ff05932a",
 	}
 	linter := dto.LinterInstance{
 		Id:                 "test-linter",
-		DockerImage:        "docker.io/sivukhinnikita/govanish:8.0.0",
-		DockerImageShaHash: "4257681aec436662049ed919c9aa2e8028e59e647efa4c996495a308c48dd77d",
+		DockerImage:        "docker.io/sivukhinnikita/nilaway:4.0.0",
+		DockerImageShaHash: "8639b178ae41861765a8149f298353bcac36de4b9e1de3bfe175d92953591fd0",
 	}
 	highlights, err := Lint.Run(context.Background(), repo, linter)
 	t.Log(highlights, err)

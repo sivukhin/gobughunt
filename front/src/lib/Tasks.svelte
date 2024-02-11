@@ -1,13 +1,14 @@
 <script lang="ts">
     import {navigate} from "svelte-routing";
+    import {ApiUrl} from "./Route";
 
     async function load(skip: number, take: number) {
-        return await (await fetch(`http://localhost:3000/api/lint-tasks?skip=${skip}&take=${take}`)).json()
+        return await (await fetch(`${ApiUrl}/api/lint-tasks?skip=${skip}&take=${take}`)).json()
     }
 </script>
 
 <h2 style="text-align: left">lint tasks</h2>
-{#await load(0, 100)}
+{#await load(0, 1000)}
     <p>loading</p>
 {:then items}
     <table>
