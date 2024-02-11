@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/sivukhin/gobughunt/lib/logging"
 )
@@ -90,33 +91,38 @@ func (d NaiveDockerApi) Exec(
 		Stderr: true,
 		Stdout: true,
 	})
+	// we want to take control over attached container - so we will manually call attach.Close() when we want to exit (context canceled or container succeeded)
 	if err != nil {
 		return nil, fmt.Errorf("unable to attach to container %v: %w", create.ID, err)
 	}
-	defer attach.Close()
-
 	err = cli.ContainerStart(ctx, create.ID, types.ContainerStartOptions{})
 	if err != nil {
+		attach.Close()
 		return nil, fmt.Errorf("unable to start container %v: %w", create.ID, err)
 	}
 	lines := make([]string, 0)
-	scanner := bufio.NewScanner(&DockerStreamReader{Reader: attach.Reader})
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("unable to read stdout of container %v: %w", create.ID, err)
-	}
+	var errGroup errgroup.Group
+	errGroup.Go(func() error {
+		scanner := bufio.NewScanner(&DockerStreamReader{Reader: attach.Reader})
+		for scanner.Scan() {
+			lines = append(lines, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			return fmt.Errorf("unable to read stdout of container %v: %w", create.ID, err)
+		}
+		return nil
+	})
+
 	statusC, errC := cli.ContainerWait(ctx, create.ID, container.WaitConditionNotRunning)
 	select {
 	case status := <-statusC:
 		if status.StatusCode != 0 {
-			return lines, fmt.Errorf("%w: %v", DockerNonZeroExitCodeErr, status.StatusCode)
+			err = fmt.Errorf("%w: %v", DockerNonZeroExitCodeErr, status.StatusCode)
 		}
-		return lines, nil
 	case err = <-errC:
-		return nil, err
 	}
+	attach.Close()
+	return lines, errors.Join(err, errGroup.Wait())
 }
 
 type DockerStreamReader struct {

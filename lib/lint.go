@@ -50,10 +50,6 @@ func (l NaiveLinting) Run(
 	if err != nil {
 		return nil, fmt.Errorf("%w: mkdir temp failed: %w", LintTempErr, err)
 	}
-	err = os.Chmod(targetDir, 0660)
-	if err != nil {
-		return nil, fmt.Errorf("%w: chmod failed: %w", LintTempErr, err)
-	}
 	defer func() {
 		err := os.RemoveAll(targetDir)
 		if err != nil {

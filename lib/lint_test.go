@@ -3,11 +3,39 @@ package lib
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/sivukhin/gobughunt/lib/dto"
 )
+
+func TestDumb(t *testing.T) {
+	t.Run("non-zero exit code", func(t *testing.T) {
+		d := t.TempDir()
+		lines, err := Docker.Exec(
+			context.Background(),
+			"docker.io/sivukhinnikita/dumb-fail:1.0.0@sha256:acc0726e21d1e9ea1c205216ad74c9d647b8f126d26af3586603462255fef969",
+			d,
+			"/src",
+		)
+		require.ErrorIs(t, err, DockerNonZeroExitCodeErr)
+		t.Log(lines, err)
+	})
+	t.Run("long", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		d := t.TempDir()
+		lines, err := Docker.Exec(
+			ctx,
+			"docker.io/sivukhinnikita/dumb-long:1.0.0@sha256:79844422ce2abefacdd5451a098944293864942e37e10b0e84c8b687c098780a",
+			d,
+			"/src",
+		)
+		require.NotNil(t, err)
+		t.Log(lines, err)
+	})
+}
 
 func TestLint(t *testing.T) {
 	repo := dto.RepoInstance{

@@ -1,0 +1,6 @@
+FROM alpine:3.19
+
+RUN echo "sleep 10000" > run.sh
+RUN chmod +x run.sh
+
+ENTRYPOINT ["sh", "run.sh"]
