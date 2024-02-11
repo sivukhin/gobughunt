@@ -49,6 +49,7 @@ type HighlightSnippetDto struct {
 }
 
 type LintHighlightDto struct {
+	LintId      string              `json:"lintId"`
 	Linter      LinterDto           `json:"linter"`
 	Repo        RepoDto             `json:"repo"`
 	Status      string              `json:"status"`
@@ -325,6 +326,7 @@ func (b PgBugHuntStorage) LintHighlights(ctx context.Context, filter LintHighlig
 			return nil, err
 		}
 		highlights = append(highlights, LintHighlightDto{
+			LintId: id,
 			Linter: LinterDto{
 				Id:                 linterId,
 				GitUrl:             linterGitUrl,

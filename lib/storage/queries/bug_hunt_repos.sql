@@ -52,4 +52,4 @@ FROM repos as repos
          LEFT JOIN repo_stats_pending as pending ON repos.repo_id = pending.repo_id
          LEFT JOIN repo_stats_rejected as rejected ON repos.repo_id = rejected.repo_id
          LEFT JOIN repo_stats_accepted as accepted ON repos.repo_id = accepted.repo_id
-ORDER BY accepted_highlight_dedup DESC, rejected_highlight_dedup, pending_highlight_dedup DESC, updated_at DESC
+ORDER BY accepted_highlight_dedup DESC, pending_highlight_dedup DESC, rejected_highlight_dedup, updated_at DESC

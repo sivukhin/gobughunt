@@ -15,15 +15,15 @@
         <tr>
             <th style="text-align: left">repo</th>
             <th style="text-align: right">accepted</th>
-            <th style="text-align: right">rejected</th>
             <th style="text-align: right">pending</th>
+            <th style="text-align: right">rejected</th>
         </tr>
         {#each items as item}
             <tr class="link" on:click={() => navigate(`/highlights?repoId=${item.id}`)}>
                 <td style="text-align: left"><a href="{item.gitUrl}" target="_blank">{item.id}</a></td>
                 <td style="text-align: right">{item.acceptedHighlightDedup}</td>
-                <td style="text-align: right">{item.rejectedHighlightDedup}</td>
                 <td style="text-align: right">{item.pendingHighlightDedup}</td>
+                <td style="text-align: right">{item.rejectedHighlightDedup}</td>
             </tr>
         {/each}
     </table>

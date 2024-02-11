@@ -53,4 +53,4 @@ FROM linters as linters
          LEFT JOIN linter_stats_pending as pending ON linters.linter_id = pending.linter_id
          LEFT JOIN linter_stats_rejected as rejected ON linters.linter_id = rejected.linter_id
          LEFT JOIN linter_stats_accepted as accepted ON linters.linter_id = accepted.linter_id
-ORDER BY accepted_highlight_dedup DESC, rejected_highlight_dedup, pending_highlight_dedup DESC, updated_at DESC
+ORDER BY accepted_highlight_dedup DESC, pending_highlight_dedup DESC, rejected_highlight_dedup, updated_at DESC

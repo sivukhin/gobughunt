@@ -12,7 +12,7 @@
         }
     }
 
-    async function moderate(path: string, startLine: number, endLine: number, status: string) {
+    async function moderate(lintId: string, path: string, startLine: number, endLine: number, status: string) {
         await fetch(`${ApiUrl}/api/lint-highlights/moderate?lintId=${lintId}&path=${path}&startLine=${startLine}&endLine=${endLine}&status=${status}`)
     }
 
@@ -47,8 +47,8 @@
                         </a>
                     </span>
                     {#if item.status === "pending"}
-                        <button class="accept" on:click={() => moderate(item.path, item.startLine, item.endLine, "accepted")}>approve bug</button>
-                        <button class="reject" on:click={() => moderate(item.path, item.startLine, item.endLine, "rejected")}>reject bug</button>
+                        <button class="accept" on:click={() => moderate(item.lintId, item.path, item.startLine, item.endLine, "accepted")}>approve bug</button>
+                        <button class="reject" on:click={() => moderate(item.lintId, item.path, item.startLine, item.endLine, "rejected")}>reject bug</button>
                     {/if}
                     {#if item.status === "accepted"}
                         <div class="accept">accepted</div>
