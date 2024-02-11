@@ -12,15 +12,15 @@ import (
 func TestLint(t *testing.T) {
 	repo := dto.RepoInstance{
 		Id:            "test-repo",
-		GitUrl:        "https://github.com/drakkan/sftpgo",
-		GitCommitHash: "c8da72a7f7ea10a3ca853f66f0ad80855893b775",
+		GitUrl:        "https://github.com/gin-gonic/gin",
+		GitCommitHash: "bb3519d26f52835cf00e5e430b52651a9c378c97",
 	}
 	linter := dto.LinterInstance{
 		Id:                 "test-linter",
-		DockerImage:        "sivukhinnikita/govanish:3.0.0",
-		DockerImageShaHash: "e0a20eadc9d60c1a67f9b3cb7aa1431b2fb8b93c1cf6ae002e297f2465c16dd8",
+		DockerImage:        "docker.io/sivukhinnikita/govanish:8.0.0",
+		DockerImageShaHash: "4257681aec436662049ed919c9aa2e8028e59e647efa4c996495a308c48dd77d",
 	}
-	highlights, err := NaiveLinting.Run(context.Background(), repo, linter)
+	highlights, err := Lint.Run(context.Background(), repo, linter)
 	t.Log(highlights, err)
 }
 

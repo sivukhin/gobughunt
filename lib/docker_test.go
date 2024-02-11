@@ -11,11 +11,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCleanup(t *testing.T) {
+	t.Log(Docker.Cleanup(context.Background()))
+}
+
 func TestDockerExec(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		path, err := filepath.Abs("../")
 		require.Nil(t, err)
-		lines, err := NaiveDockerApi.Exec(
+		lines, err := Docker.Exec(
 			context.Background(),
 			"sivukhinnikita/govanish:1.0.0@sha256:91fc7f5131aa71e5659de72b78934ecef3373cf1315469e5e8a9d3e18b7e0b89",
 			"/home",
@@ -27,7 +31,7 @@ func TestDockerExec(t *testing.T) {
 	t.Run("non-zero exit code", func(t *testing.T) {
 		path, err := filepath.Abs("../")
 		require.Nil(t, err)
-		_, err = NaiveDockerApi.Exec(
+		_, err = Docker.Exec(
 			context.Background(),
 			"sivukhinnikita/dumb-fail:1.0.0@sha256:acc0726e21d1e9ea1c205216ad74c9d647b8f126d26af3586603462255fef969",
 			"/home",

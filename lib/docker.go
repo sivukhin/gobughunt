@@ -10,25 +10,55 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+
+	"github.com/sivukhin/gobughunt/lib/logging"
 )
 
 type DockerApi interface {
+	Cleanup(ctx context.Context) error
 	Exec(ctx context.Context, dockerImage string, containerBindPath, localBindPath string) ([]string, error)
 }
 
-type naiveDockerApi struct{}
+type NaiveDockerApi struct {
+	MemoryBytes int64
+	CpuNanos    int64
+}
 
-var NaiveDockerApi = naiveDockerApi{}
+var Docker DockerApi = NaiveDockerApi{}
 
 var DockerNonZeroExitCodeErr = errors.New("non zero exit code")
 
-func (_ naiveDockerApi) Exec(ctx context.Context, dockerImage string, containerBindPath, localBindPath string) ([]string, error) {
+func (_ NaiveDockerApi) Cleanup(ctx context.Context) error {
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return fmt.Errorf("unable to create docker client: %w", err)
+	}
+	cacheReport, err := cli.BuildCachePrune(ctx, types.BuildCachePruneOptions{All: true})
+	if err != nil {
+		return err
+	}
+	logging.Logger.Infof("build cache pruned: reclaimed %v bytes", cacheReport.SpaceReclaimed)
+	volumesReport, err := cli.VolumesPrune(ctx, filters.NewArgs())
+	if err != nil {
+		return err
+	}
+	logging.Logger.Infof("volumes pruned: reclaimed %v bytes", volumesReport.SpaceReclaimed)
+	return nil
+}
+
+func (d NaiveDockerApi) Exec(
+	ctx context.Context,
+	dockerImage string,
+	containerBindPath, localBindPath string,
+) ([]string, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create docker client: %w", err)
 	}
-	pull, err := cli.ImagePull(ctx, dockerImage, types.ImagePullOptions{})
+	logging.Logger.Infof("ready to exec docker image %v", dockerImage)
+	pull, err := cli.ImagePull(ctx, dockerImage, types.ImagePullOptions{All: true})
 	if err != nil {
 		return nil, fmt.Errorf("unable to pull docker image %v: %w", dockerImage, err)
 	}
@@ -44,7 +74,13 @@ func (_ naiveDockerApi) Exec(ctx context.Context, dockerImage string, containerB
 	_ = pull.Close()
 
 	containerConfig := &container.Config{Image: dockerImage, Cmd: []string{containerBindPath}}
-	hostConfig := &container.HostConfig{Binds: []string{fmt.Sprintf("%v:%v", localBindPath, containerBindPath)}}
+	hostConfig := &container.HostConfig{
+		Binds: []string{fmt.Sprintf("%v:%v", localBindPath, containerBindPath)},
+		Resources: container.Resources{
+			Memory:   d.MemoryBytes,
+			NanoCPUs: d.CpuNanos,
+		},
+	}
 	create, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, "")
 	if err != nil {
 		return nil, fmt.Errorf("unable to create container for image %v: %w", dockerImage, err)

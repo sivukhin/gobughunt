@@ -15,7 +15,7 @@ import (
 func TestFetchRepository(t *testing.T) {
 	t.Run("fetch branch", func(t *testing.T) {
 		d := t.TempDir()
-		repo, err := NaiveGitApi.Fetch(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{Branch: "master"}, d)
+		repo, err := Git.Fetch(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{Branch: "master"}, d)
 		require.Nil(t, err)
 		t.Log(repo)
 		{
@@ -31,7 +31,7 @@ func TestFetchRepository(t *testing.T) {
 	})
 	t.Run("fetch commit hash", func(t *testing.T) {
 		d := t.TempDir()
-		repo, err := NaiveGitApi.Fetch(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{CommitHash: "a4d8a6fc86afcc1aa8c4c919d3073ee996eb139d"}, d)
+		repo, err := Git.Fetch(context.Background(), "https://github.com/sivukhin/govanish", dto.GitRef{CommitHash: "a4d8a6fc86afcc1aa8c4c919d3073ee996eb139d"}, d)
 		require.Nil(t, err)
 		t.Log(repo)
 		{

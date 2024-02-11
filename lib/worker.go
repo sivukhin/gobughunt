@@ -3,6 +3,7 @@ package lib
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/sivukhin/gobughunt/lib/dto"
@@ -12,42 +13,50 @@ import (
 )
 
 type Worker struct {
-	LintStorage         storage.LintStorage
-	Linting             Linting
-	IterationTimeout    time.Duration
-	IterationShortDelay time.Duration
-	IterationLongDelay  time.Duration
-	LockDuration        time.Duration
+	LintStorage           storage.LintStorage
+	DockerApi             DockerApi
+	Linting               Linting
+	IterationTimeout      time.Duration
+	IterationFailDelay    time.Duration
+	IterationSuccessDelay time.Duration
+	LockDuration          time.Duration
 }
 
 func (w Worker) RunForever(ctx context.Context) {
 	logging.Logger.Infof(
 		"worker started: timeout=%v, shortDelay=%v, longDelay=%v, lockDuration=%v",
 		w.IterationTimeout,
-		w.IterationShortDelay,
-		w.IterationLongDelay,
+		w.IterationFailDelay,
+		w.IterationSuccessDelay,
 		w.LockDuration,
 	)
-	<-timeout.RunForeverAsync("worker", ctx, w.IterationTimeout, func(ctx context.Context) time.Duration {
+	periodic := timeout.Periodic(ctx, w.IterationFailDelay, w.IterationSuccessDelay)
+	worker := timeout.Process("worker", periodic, w.IterationTimeout, func(ctx context.Context, _ struct{}, next func(struct{})) error {
 		err := w.RunOnce(ctx)
-		if errors.Is(err, storage.NoTasksErr) {
-			logging.Logger.Infof("no ready tasks found, sleeping for %v", w.IterationLongDelay)
-			return w.IterationLongDelay
-		} else if err != nil {
-			logging.Logger.Errorf("failed single iteration, sleeping for %v: %v", w.IterationShortDelay, err)
-			return w.IterationShortDelay
+		if err != nil && !errors.Is(err, storage.NoTasksErr) {
+			return fmt.Errorf("failed single iteration: %w", err)
+		} else if errors.Is(err, storage.NoTasksErr) {
+			logging.Logger.Infof("no ready tasks found")
 		} else {
-			logging.Logger.Infof("succeed with single iteration, sleeping for %v", w.IterationShortDelay)
-			return w.IterationShortDelay
+			logging.Logger.Infof("succeed with single iteration")
 		}
+		return nil
 	})
+	timeout.Close(worker)
 }
 
 func (w Worker) RunOnce(ctx context.Context) error {
+	logging.Logger.Infof("worker run single iteration")
 	now := time.Now()
 	lintTask, err := w.LintStorage.TryTake(ctx, now.Add(-w.LockDuration), now)
 	if err != nil {
 		return err
+	}
+	logging.Logger.Infof("took single lint task: %+v", lintTask)
+
+	err = w.DockerApi.Cleanup(ctx)
+	if err != nil {
+		logging.Logger.Errorf("failed to cleanup docker: %v", err)
 	}
 
 	startLintTime := time.Now()

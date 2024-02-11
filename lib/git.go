@@ -22,7 +22,7 @@ type GitApi interface {
 
 type naiveGitApi struct{}
 
-var NaiveGitApi GitApi = naiveGitApi{}
+var Git GitApi = naiveGitApi{}
 
 func (_ naiveGitApi) Fetch(ctx context.Context, gitUrl string, gitRef dto.GitRef, targetDir string) (GitRepo, error) {
 	_, err := runCommand(ctx, targetDir, "git", "init")

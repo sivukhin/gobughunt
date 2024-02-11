@@ -18,7 +18,8 @@ import (
 
 const ContainerBindPath = "/src"
 
-type naiveLinting struct {
+type NaiveLinting struct {
+	TempDir   string
 	DockerApi DockerApi
 	GitApi    GitApi
 }
@@ -27,7 +28,7 @@ type Linting interface {
 	Run(ctx context.Context, repo dto.RepoInstance, linter dto.LinterInstance) ([]dto.LintHighlightSnippet, error)
 }
 
-var NaiveLinting = naiveLinting{DockerApi: NaiveDockerApi, GitApi: NaiveGitApi}
+var Lint = NaiveLinting{DockerApi: Docker, GitApi: Git}
 
 var (
 	LintTempErr    = errors.New("lint failed with temp error")
@@ -37,18 +38,21 @@ var (
 	LintSkippedErr = errors.New("lint skipped")
 )
 
-func (l naiveLinting) Run(
+func (l NaiveLinting) Run(
 	ctx context.Context,
 	repo dto.RepoInstance,
 	linter dto.LinterInstance,
 ) ([]dto.LintHighlightSnippet, error) {
 	logging.Logger.Infof("start linting repo %v with linter %v", repo, linter)
 	lintStartTime := time.Now()
-	_ = lintStartTime
 
-	targetDir, err := os.MkdirTemp(".", "repo_clone_*")
+	targetDir, err := os.MkdirTemp(l.TempDir, "repo_clone_*")
 	if err != nil {
 		return nil, fmt.Errorf("%w: mkdir temp failed: %w", LintTempErr, err)
+	}
+	err = os.Chmod(targetDir, 0660)
+	if err != nil {
+		return nil, fmt.Errorf("%w: chmod failed: %w", LintTempErr, err)
 	}
 	defer func() {
 		err := os.RemoveAll(targetDir)
@@ -58,6 +62,7 @@ func (l naiveLinting) Run(
 	}()
 
 	cloneStartTime := time.Now()
+	logging.Logger.Infof("ready to clone repo %v to the directory %v", repo, targetDir)
 	_, err = l.GitApi.Fetch(ctx, repo.GitUrl, dto.GitRef{CommitHash: repo.GitCommitHash}, targetDir)
 	if err != nil {
 		logging.Logger.Errorf("clone of repo %v to the directory %v failed: err=%v, elapsed=%v", repo, targetDir, err, time.Since(cloneStartTime))
@@ -71,9 +76,15 @@ func (l naiveLinting) Run(
 	if err != nil {
 		return nil, fmt.Errorf("%w: unable to get absolute path for directory %v: %w", LintExecErr, targetDir, err)
 	}
-	lines, err := l.DockerApi.Exec(ctx, fmt.Sprintf("%v@sha256:%v", linter.DockerImage, linter.DockerImageShaHash), ContainerBindPath, targetDirAbs)
+	logging.Logger.Infof("ready to lint repo %v with linter %v", repo, linter)
+	lines, err := l.DockerApi.Exec(
+		ctx,
+		fmt.Sprintf("%v@sha256:%v", linter.DockerImage, linter.DockerImageShaHash),
+		ContainerBindPath,
+		targetDirAbs,
+	)
 	if err != nil {
-		logging.Logger.Errorf("exec of the linter %v against repo %v failed: err=%v, elapsed=%v", linter, repo, err, time.Since(execStartTime))
+		logging.Logger.Errorf("exec of the linter %v against repo %v failed: err=%v, lines=%v, elapsed=%v", linter, repo, err, lines, time.Since(execStartTime))
 
 		if errors.Is(err, DockerNonZeroExitCodeErr) {
 			return nil, fmt.Errorf("%w: linter %v exited with non-zero code: %w", LintExecErr, linter, err)

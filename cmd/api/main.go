@@ -13,6 +13,12 @@ import (
 	"github.com/sivukhin/gobughunt/lib/utils"
 )
 
+var (
+	connectionDuration = utils.EnvMustParseDurationSec("CONNECTION_DURATION_SEC")
+	connectionString   = utils.EnvMustParseString("CONNECTION_STRING")
+	serverLocal        = utils.EnvTryParseBool("SERVER_LOCAL")
+)
+
 func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 
@@ -28,18 +34,16 @@ func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc
 			_, _ = writer.Write([]byte(err.Error()))
 		}
 		writer.Header().Set("Content-Type", "application/json")
-		writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
-		writer.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+		if serverLocal {
+			writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5000")
+			writer.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
+		}
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write(response)
 	}
 }
 
 func main() {
-	var (
-		connectionDuration = utils.EnvMustParseDurationSec("CONNECTION_DURATION_SEC")
-		connectionString   = utils.EnvMustParseString("CONNECTION_STRING")
-	)
 	connectCtx, cancel := context.WithTimeout(context.Background(), connectionDuration)
 	defer cancel()
 

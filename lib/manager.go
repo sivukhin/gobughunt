@@ -17,82 +17,97 @@ import (
 )
 
 type Manager struct {
-	LinterStorage   storage.LinterStorage
-	RepoStorage     storage.RepoStorage
-	LintStorage     storage.LintStorage
-	DockerApi       DockerApi
-	GitApi          GitApi
-	ScheduleTimeout time.Duration
-	ScheduleDelay   time.Duration
-	ShortDelay      time.Duration
+	LinterStorage       storage.LinterStorage
+	RepoStorage         storage.RepoStorage
+	LintStorage         storage.LintStorage
+	DockerApi           DockerApi
+	GitApi              GitApi
+	FetchTimeout        time.Duration
+	RefreshTimeout      time.Duration
+	ScheduleTimeout     time.Duration
+	ManagerFailDelay    time.Duration
+	ManagerSuccessDelay time.Duration
 }
 
 func (m Manager) ManageForever(ctx context.Context) {
-	logging.Logger.Infof("manager started: scheduleTimeout=%v, scheduleDelay=%v, shortDelay=%v", m.ScheduleTimeout, m.ScheduleDelay, m.ShortDelay)
-	<-timeout.RunForeverAsync("scheduler", ctx, m.ScheduleTimeout, func(ctx context.Context) time.Duration {
+	logging.Logger.Infof(
+		"manager started: fetchTimeout=%v, refreshTimeout=%v, scheduleTimeout=%v, managerFailDelay=%v, managerSuccessDelay=%v",
+		m.FetchTimeout,
+		m.RefreshTimeout,
+		m.ScheduleTimeout,
+		m.ManagerFailDelay,
+		m.ManagerSuccessDelay,
+	)
+	periodic := timeout.Periodic(ctx, m.ManagerFailDelay, m.ManagerSuccessDelay)
+	repos := timeout.Process("fetch-repos", periodic, m.FetchTimeout, func(ctx context.Context, _ struct{}, next func(result dto.Repo)) error {
+		repos, err := m.RepoStorage.List(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch all repos: %w", err)
+		}
+		for _, repo := range repos {
+			next(repo)
+		}
+		return nil
+	})
+	refresh := timeout.Process("refresh-repos", repos, m.RefreshTimeout, func(ctx context.Context, repo dto.Repo, next func(result dto.Repo)) error {
+		logging.Logger.Infof("starting refresh of the repo %+v", repo)
+		updated, err := m.RefreshRepo(ctx, repo)
+		if err != nil {
+			return fmt.Errorf("failed refresh of repo %+v: %w", repo.Meta, err)
+		}
+		logging.Logger.Infof("succeeded with refresh of repo %+v", updated)
+		next(updated)
+		return nil
+	})
+	scheduler := timeout.Process("scheduler", refresh, m.ScheduleTimeout, func(ctx context.Context, repo dto.Repo, next func(result struct{})) error {
 		allLinters, err := m.LinterStorage.List(ctx)
 		if err != nil {
-			logging.Logger.Errorf("failed to fetch all linters: %v", err)
-			return m.ShortDelay
+			return fmt.Errorf("failed to fetch all linters: %w", err)
 		}
 		linters := allLinters.SelectWithInstances()
 		logging.Logger.Infof("found %v linters, %v with instances", len(allLinters), len(linters))
-
-		allRepos, err := m.RepoStorage.List(ctx)
-		if err != nil {
-			logging.Logger.Errorf("failed to fetch all repos: %v", err)
-			return m.ShortDelay
-		}
-
-		for _, repo := range allRepos {
-			err := m.RefreshRepo(ctx, repo)
+		for _, linter := range linters {
+			err := m.ManageOnce(ctx, repo, linter)
 			if err != nil {
-				logging.Logger.Errorf("failed refresh of repo %+v: %v", repo.Meta, err)
+				logging.Logger.Errorf("failed single iteration: %v", err)
 			} else {
-				logging.Logger.Infof("succeeded with refresh of repo %+v", repo.Meta)
+				logging.Logger.Infof("succeed with single iteration")
 			}
 		}
-
-		allRepos, err = m.RepoStorage.List(ctx)
-		if err != nil {
-			logging.Logger.Errorf("failed to fetch all repos: %v", err)
-			return m.ShortDelay
-		}
-		repos := allRepos.SelectWithInstances()
-		logging.Logger.Infof("found %v repos, %v with instances", len(allRepos), len(repos))
-
-		for _, repo := range repos {
-			for _, linter := range linters {
-				err := m.ManageOnce(ctx, repo, linter)
-				if err != nil {
-					logging.Logger.Errorf("failed single iteration: %v", err)
-				} else {
-					logging.Logger.Infof("succeed with single iteration")
-				}
-			}
-		}
-		return m.ScheduleDelay
+		return nil
 	})
+	timeout.Close(scheduler)
 }
 
-func (m Manager) RefreshRepo(ctx context.Context, repo dto.Repo) error {
-	targetDir, err := os.MkdirTemp(".", "repo_clone_*")
+func (m Manager) RefreshRepo(ctx context.Context, repo dto.Repo) (dto.Repo, error) {
+	targetDir, err := os.MkdirTemp("", "repo_clone_*")
 	if err != nil {
-		return fmt.Errorf("mkdir temp failed: %w", err)
+		return dto.Repo{}, fmt.Errorf("mkdir temp failed: %w", err)
 	}
-	defer os.Remove(targetDir)
+	err = os.Chmod(targetDir, 0660)
+	if err != nil {
+		return dto.Repo{}, fmt.Errorf("%w: chmod failed: %w", LintTempErr, err)
+	}
+	defer func() {
+		err := os.RemoveAll(targetDir)
+		if err != nil {
+			logging.Logger.Errorf("failed to remove temp dir %v: %v", targetDir, err)
+		}
+	}()
 	info, err := m.GitApi.Fetch(ctx, repo.Meta.GitUrl, dto.GitRef{Branch: repo.Meta.GitBranch}, targetDir)
 	if err != nil {
-		return fmt.Errorf("failed to fetch repo %v: %w", repo, err)
+		return dto.Repo{}, fmt.Errorf("failed to fetch repo %v: %w", repo, err)
 	}
-	return m.RepoStorage.AddOrUpdate(ctx, dto.Repo{
+	updated := dto.Repo{
 		Meta: repo.Meta,
 		Instance: &dto.RepoInstance{
 			Id:            repo.Meta.Id,
 			GitUrl:        repo.Meta.GitUrl,
 			GitCommitHash: info.CommitHash,
 		},
-	}, time.Now())
+	}
+	err = m.RepoStorage.AddOrUpdate(ctx, updated, time.Now())
+	return updated, err
 }
 
 func (m Manager) ManageOnce(ctx context.Context, repo dto.Repo, linter dto.Linter) error {

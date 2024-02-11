@@ -13,11 +13,13 @@ import (
 
 func main() {
 	var (
-		connectionDuration = utils.EnvMustParseDurationSec("CONNECTION_DURATION_SEC")
-		connectionString   = utils.EnvMustParseString("CONNECTION_STRING")
-		scheduleTimeout    = utils.EnvMustParseDurationSec("MANAGER_SCHEDULE_TIMEOUT_SEC")
-		scheduleDelay      = utils.EnvMustParseDurationSec("MANAGER_SCHEDULE_DELAY_SEC")
-		shortDelay         = utils.EnvMustParseDurationSec("MANAGER_SHORT_DELAY_SEC")
+		connectionDuration  = utils.EnvMustParseDurationSec("CONNECTION_DURATION_SEC")
+		connectionString    = utils.EnvMustParseString("CONNECTION_STRING")
+		fetchTimeout        = utils.EnvMustParseDurationSec("MANAGER_FETCH_TIMEOUT_SEC")
+		refreshTimeout      = utils.EnvMustParseDurationSec("MANAGER_REFRESH_TIMEOUT_SEC")
+		scheduleTimeout     = utils.EnvMustParseDurationSec("MANAGER_SCHEDULE_TIMEOUT_SEC")
+		managerFailDelay    = utils.EnvMustParseDurationSec("MANAGER_FAIL_DELAY_SEC")
+		managerSuccessDelay = utils.EnvMustParseDurationSec("MANAGER_SUCCESS_DELAY_SEC")
 	)
 	connectCtx, cancel := context.WithTimeout(context.Background(), connectionDuration)
 	defer cancel()
@@ -29,14 +31,16 @@ func main() {
 	}
 
 	manager := lib.Manager{
-		LinterStorage:   storage.PgLinterStorage(pgStorage),
-		RepoStorage:     storage.PgRepoStorage(pgStorage),
-		LintStorage:     storage.PgLintStorage(pgStorage),
-		DockerApi:       lib.NaiveDockerApi,
-		GitApi:          lib.NaiveGitApi,
-		ScheduleTimeout: scheduleTimeout,
-		ScheduleDelay:   scheduleDelay,
-		ShortDelay:      shortDelay,
+		LinterStorage:       storage.PgLinterStorage(pgStorage),
+		RepoStorage:         storage.PgRepoStorage(pgStorage),
+		LintStorage:         storage.PgLintStorage(pgStorage),
+		DockerApi:           lib.Docker,
+		GitApi:              lib.Git,
+		FetchTimeout:        fetchTimeout,
+		RefreshTimeout:      refreshTimeout,
+		ScheduleTimeout:     scheduleTimeout,
+		ManagerFailDelay:    managerFailDelay,
+		ManagerSuccessDelay: managerSuccessDelay,
 	}
 	manager.ManageForever(signalsCtx)
 }

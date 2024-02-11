@@ -16,6 +16,10 @@ func NewPgStorage(ctx context.Context, connectionString string) (PgStorage, erro
 	if err != nil {
 		return PgStorage{}, fmt.Errorf("failed to connect: %w", err)
 	}
+	err = pool.Ping(ctx)
+	if err != nil {
+		return PgStorage{}, fmt.Errorf("ping failed: %w", err)
+	}
 	config := pool.Config().ConnConfig.Config
 	logging.Logger.Infof("connection established: host=%v, db=%v", config.Host, config.Database)
 	return PgStorage{pool}, nil
