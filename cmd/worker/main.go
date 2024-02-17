@@ -38,7 +38,8 @@ func main() {
 		LintStorage: storage.PgLintStorage(pgStorage),
 		DockerApi: lib.NaiveDockerApi{
 			MemoryBytes: dockerMemoryGb * 1024 * 1024 * 1024,
-			CpuNanos:    dockerCpuMillis * 1000 * 1000,
+			CpuMilli:    dockerCpuMillis,
+			PidLimit:    16 * 1024,
 		},
 		Linting:        lib.NaiveLinting{TempDir: dockerTempDir, DockerApi: lib.Docker, GitApi: lib.Git},
 		IterationDelay: iterationDelay,

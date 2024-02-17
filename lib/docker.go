@@ -25,10 +25,16 @@ type DockerApi interface {
 
 type NaiveDockerApi struct {
 	MemoryBytes int64
-	CpuNanos    int64
+	CpuMilli    int64
+	PidLimit    int64
 }
 
-var Docker DockerApi = NaiveDockerApi{}
+// Docker reasonable defaults
+var Docker DockerApi = NaiveDockerApi{
+	MemoryBytes: 4 * 1024 * 1024 * 1024, // 4 GiB
+	CpuMilli:    4 * 1000,               // 4 CPU
+	PidLimit:    1024,                   // 1024 processes
+}
 
 var DockerNonZeroExitCodeErr = errors.New("non zero exit code")
 
@@ -92,8 +98,10 @@ func (d NaiveDockerApi) Exec(
 	hostConfig := &container.HostConfig{
 		Binds: []string{fmt.Sprintf("%v:%v", localBindPath, containerBindPath)},
 		Resources: container.Resources{
-			Memory:   d.MemoryBytes,
-			NanoCPUs: d.CpuNanos,
+			Memory:    d.MemoryBytes,
+			CPUPeriod: 1000_000,
+			CPUQuota:  1000 * d.CpuMilli,
+			PidsLimit: &d.PidLimit,
 		},
 	}
 	create, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, "")

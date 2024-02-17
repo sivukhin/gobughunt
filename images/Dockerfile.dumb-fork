@@ -1,0 +1,6 @@
+FROM alpine:3.19
+
+RUN echo 'while true; do sh run.sh & done' > run.sh
+RUN chmod +x run.sh
+
+ENTRYPOINT ["sh", "run.sh"]

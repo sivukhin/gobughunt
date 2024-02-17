@@ -1,0 +1,6 @@
+FROM alpine:3.19
+
+RUN echo 'it=0; var=a; while true; do echo $it; it=$((it+1)); var="$var$var"; done' > run.sh
+RUN chmod +x run.sh
+
+ENTRYPOINT ["sh", "run.sh"]

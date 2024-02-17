@@ -19,8 +19,8 @@ func TestDumb(t *testing.T) {
 			d,
 			"/src",
 		)
-		require.ErrorIs(t, err, DockerNonZeroExitCodeErr)
 		t.Log(lines, err)
+		require.ErrorIs(t, err, DockerNonZeroExitCodeErr)
 	})
 	t.Run("long", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -32,8 +32,34 @@ func TestDumb(t *testing.T) {
 			d,
 			"/src",
 		)
-		require.NotNil(t, err)
 		t.Log(lines, err)
+		require.NotNil(t, err)
+	})
+	t.Run("mem", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		d := t.TempDir()
+		lines, err := NaiveDockerApi{MemoryBytes: 128 * 1024 * 1024}.Exec(
+			ctx,
+			"docker.io/sivukhinnikita/dumb-mem:1.0.0@sha256:1405e034c51723503eff603a3e0134be2b1471b216161679011e2fc9e6030131",
+			d,
+			"/src",
+		)
+		t.Log(lines, err)
+		require.ErrorContains(t, err, "non zero exit code: 137")
+	})
+	t.Run("fork", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		d := t.TempDir()
+		lines, err := NaiveDockerApi{MemoryBytes: 128 * 1024 * 1024, CpuMilli: 100, PidLimit: 1024}.Exec(
+			ctx,
+			"docker.io/sivukhinnikita/dumb-fork:1.0.0@sha256:4313537ddc991431929700790b060a3daa639c37144d745fb364a4655eabc989",
+			d,
+			"/src",
+		)
+		t.Log(lines, err)
+		require.ErrorContains(t, err, "non zero exit code: 2")
 	})
 }
 
