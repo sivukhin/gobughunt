@@ -45,14 +45,14 @@ func ViolatesUniqueConstraint(err error) bool {
 }
 
 func TryGetText(text pgtype.Text) *string {
-	if text.Valid {
-		return &text.String
+	if !text.Valid {
+		return nil
 	}
-	return nil
+	return &text.String
 }
 
 func TryGetDurationSec(duration pgtype.Interval) *float64 {
-	if duration.Valid {
+	if !duration.Valid {
 		return nil
 	}
 	value := time.Duration(duration.Microseconds) * time.Microsecond

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link href="/static/styles.css" rel="stylesheet"/>
+    <title>gobughunter</title>
+</head>
+<body>
+<div id="app">
+    <main>
+        <header>
+            <h1>gobughunter</h1>
+            <nav>
+                |
+                <a href="/">dashboard</a>
+                |
+                <a href="/tasks">lint tasks</a>
+                |
+                <a href="/about">about</a>
+                |
+            </nav>
+        </header>
+        <h2 style="text-align: left">lint tasks</h2>
+        <table>
+            <tr>
+                <th style="text-align: left">linter</th>
+                <th style="text-align: left">repo</th>
+                <th style="text-align: left">status</th>
+                <th style="text-align: left">duration</th>
+            </tr>
+            {{ range $task := . }}
+            <tr class="link" onclick="window.location = '/lint-highlights?lintId={{ $task.Id }}'">
+                <td style="text-align: left">{{ $task.Linter.Id }}</td>
+                <td style="text-align: left">{{ $task.Repo.Id }}</td>
+                <td style="text-align: left" class="{{ $task.Status }} highlight">
+                    {{ $task.Status }}
+                    {{ if and (not (eq $task.StatusComment nil)) (not (eq (DerefStr $task.StatusComment) "")) }}
+                    (<span class="comment" title={item.statusComment}>{{ $task.StatusComment }}</span>)
+                    {{ end }}
+                </td>
+                <td style="text-align: left">
+                    {{ if not (eq $task.LintDurationSec nil) }}
+                    {{ printf "%.2f" (DerefF64 $task.LintDurationSec) }} sec.
+                    {{ end }}
+                </td>
+            {{ end }}
+        </table>
+    </main>
+</div>
+</body>
+</html>

@@ -2,22 +2,20 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	_ "embed"
 	"fmt"
-	"io"
+	"html/template"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
+	_ "golang.org/x/oauth2/endpoints"
+
 	"github.com/sivukhin/gobughunt/lib/logging"
 	"github.com/sivukhin/gobughunt/lib/utils"
 	"github.com/sivukhin/gobughunt/storage"
-	"github.com/sivukhin/gobughunt/storage/db"
-
-	_ "golang.org/x/oauth2/endpoints"
 )
 
 var (
@@ -29,6 +27,17 @@ var (
 	serverListenAddr         = utils.EnvMustParseString("SERVER_LISTEN_ADDR")
 	githubOauth2ClientId     = utils.EnvMustParseString("GITHUB_OAUTH_CLIENT_ID")
 	githubOauth2ClientSecret = utils.EnvMustParseString("GITHUB_OAUTH_CLIENT_SECRET")
+)
+
+var (
+	//go:embed templates/dashboard.html
+	dashboardTemplateString string
+	//go:embed templates/lint-tasks.html
+	lintTasksTemplateString string
+	//go:embed templates/lint-highlights.html
+	lintHighlightsTemplateString string
+	//go:embed templates/about.html
+	aboutTemplateString string
 )
 
 var (
@@ -58,33 +67,41 @@ func basicAuth(writer http.ResponseWriter, request *http.Request) bool {
 	//return true
 }
 
-func wrap[T any](handle func(request *http.Request) (T, error)) http.HandlerFunc {
+func wrap(handle func(request *http.Request, writer http.ResponseWriter) (string, error)) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if !basicAuth(writer, request) {
 			return
 		}
-		result, err := handle(request)
+		result, err := handle(request, writer)
 		if err != nil {
+			// todo (sivukhin, 2024-02-25): add more errors
 			writer.WriteHeader(http.StatusInternalServerError)
 			_, _ = writer.Write([]byte(err.Error()))
 			return
-		}
-		response, err := json.Marshal(result)
-		if err != nil {
-			writer.WriteHeader(http.StatusInsufficientStorage)
-			_, _ = writer.Write([]byte(err.Error()))
 		}
 		if serverLocal {
 			writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:5000")
 			writer.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization")
 		}
-		writer.Header().Set("Content-Type", "application/json")
+		writer.Header().Set("Content-Type", "text/html")
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write(response)
+		_, _ = writer.Write([]byte(result))
 	}
 }
 
 func main() {
+	templateFuncs := template.FuncMap{
+		"DerefF64": func(f *float64) float64 { return *f },
+		"DerefStr": func(s *string) string { return *s },
+	}
+
+	var (
+		dashboardTemplate      = template.Must(template.New("dashboard").Funcs(templateFuncs).Parse(dashboardTemplateString))
+		lintTasksTemplate      = template.Must(template.New("lint-tasks").Funcs(templateFuncs).Parse(lintTasksTemplateString))
+		lintHighlightsTemplate = template.Must(template.New("lint-highlights").Funcs(templateFuncs).Parse(lintHighlightsTemplateString))
+		aboutTemplate          = template.Must(template.New("about").Funcs(templateFuncs).Parse(aboutTemplateString))
+	)
+
 	connectCtx, cancel := context.WithTimeout(context.Background(), connectionDuration)
 	defer cancel()
 
@@ -93,200 +110,94 @@ func main() {
 		logging.Logger.Fatalf("failed to create task storage: %v", err)
 	}
 
+	apiController := ApiController{Storage: pgStorage}
+
 	server := http.NewServeMux()
-	server.HandleFunc("/api/linters", wrap(func(request *http.Request) ([]LinterDto, error) {
-		linters, err := pgStorage.ListBugHuntLinters(request.Context())
-		if err != nil {
-			return nil, err
-		}
-		dtoLinters := make([]LinterDto, 0, len(linters))
-		for _, linter := range linters {
-			dtoLinters = append(dtoLinters, LinterDto{
-				Id:                 linter.LinterID,
-				GitUrl:             linter.LinterGitUrl,
-				GitBranch:          linter.LinterGitBranch,
-				DockerImage:        storage.TryGetText(linter.LinterLastDockerImage),
-				DockerImageShaHash: storage.TryGetText(linter.LinterLastDockerShaHash),
-				StatDto: &StatDto{
-					TotalHighlightDedup:    int(linter.TotalHighlightDedup),
-					PendingHighlightDedup:  int(linter.PendingHighlightDedup),
-					RejectedHighlightDedup: int(linter.RejectedHighlightDedup),
-					AcceptedHighlightDedup: int(linter.AcceptedHighlightDedup),
-				},
-			})
-		}
-		return dtoLinters, nil
-	}))
-	server.HandleFunc("/api/repos", wrap(func(request *http.Request) ([]RepoDto, error) {
-		repos, err := pgStorage.ListBugHuntRepos(request.Context())
-		if err != nil {
-			return nil, err
-		}
-		dtoRepos := make([]RepoDto, 0, len(repos))
-		for _, repo := range repos {
-			dtoRepos = append(dtoRepos, RepoDto{
-				Id:            repo.RepoID,
-				GitUrl:        repo.RepoGitUrl,
-				GitBranch:     repo.RepoGitBranch,
-				GitCommitHash: storage.TryGetText(repo.RepoLastGitCommitHash),
-				StatDto: &StatDto{
-					TotalHighlightDedup:    int(repo.TotalHighlightDedup),
-					PendingHighlightDedup:  int(repo.PendingHighlightDedup),
-					RejectedHighlightDedup: int(repo.RejectedHighlightDedup),
-					AcceptedHighlightDedup: int(repo.AcceptedHighlightDedup),
-				},
-			})
-		}
-		return dtoRepos, nil
-	}))
-	server.HandleFunc("/api/lint-tasks", wrap(func(request *http.Request) ([]LintTaskDto, error) {
-		params := request.URL.Query()
-		skip, err := strconv.Atoi(params.Get("skip"))
-		if err != nil {
-			return nil, err
-		}
-		take, err := strconv.Atoi(params.Get("take"))
-		if err != nil {
-			return nil, err
-		}
-		take = max(1, min(take, skip+1000))
-		args := db.ListBugHuntLintTasksParams{Offset: int32(skip), Limit: int32(take)}
-		tasks, err := pgStorage.ListBugHuntLintTasks(request.Context(), args)
-		if err != nil {
-			return nil, err
-		}
-		dtoTasks := make([]LintTaskDto, 0, len(tasks))
-		for _, task := range tasks {
-			dtoTasks = append(dtoTasks, LintTaskDto{
-				Id:              task.LintID,
-				Status:          string(task.LintStatus),
-				StatusComment:   storage.TryGetText(task.LintStatusComment),
-				LintDurationSec: storage.TryGetDurationSec(task.LintDuration),
-				Linter: LinterDto{
-					Id:                 task.LinterID,
-					GitUrl:             task.LinterGitUrl,
-					GitBranch:          task.LinterGitBranch,
-					DockerImage:        &task.LinterDockerImage,
-					DockerImageShaHash: &task.LinterDockerShaHash,
-				},
-				Repo: RepoDto{
-					Id:            task.RepoID,
-					GitUrl:        task.RepoGitUrl,
-					GitBranch:     task.RepoGitBranch,
-					GitCommitHash: &task.RepoGitCommitHash,
-				},
-			})
-		}
-		return dtoTasks, nil
-	}))
-	server.Handle("/api/lint-highlights", wrap(func(request *http.Request) ([]LintHighlightDto, error) {
+	static := http.FileServer(http.Dir("./static"))
+	server.Handle("/static/", http.StripPrefix("/static/", static))
+	server.Handle("/lint-highlights", wrap(func(request *http.Request, writer http.ResponseWriter) (string, error) {
 		params := request.URL.Query()
 		lintId := params.Get("lintId")
 		repoId := params.Get("repoId")
 		linterId := params.Get("linterId")
 		if lintId == "" && repoId == "" && linterId == "" {
-			return nil, fmt.Errorf("one of three parameters should be set: lintId, repoId, linterId")
+			return "", fmt.Errorf("one of three parameters should be set: lintId, repoId, linterId")
 		}
-		args := db.ListBugHuntHighlightsParams{LintID: lintId, RepoID: repoId, LinterID: linterId}
-		highlights, err := pgStorage.ListBugHuntHighlights(request.Context(), args)
+		dtoHighlights, err := apiController.LintHighlights(request.Context(), lintId, repoId, linterId)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		dtoHighlights := make([]LintHighlightDto, 0, len(highlights))
-		for _, highlight := range highlights {
-			dtoHighlights = append(dtoHighlights, LintHighlightDto{
-				LintId: highlight.LintID,
-				Linter: LinterDto{
-					Id:                 highlight.LinterID,
-					GitUrl:             highlight.LinterGitUrl,
-					GitBranch:          highlight.LinterGitBranch,
-					DockerImage:        &highlight.LinterDockerImage,
-					DockerImageShaHash: &highlight.LinterDockerShaHash,
-				},
-				Repo: RepoDto{
-					Id:            highlight.RepoID,
-					GitUrl:        highlight.RepoGitUrl,
-					GitBranch:     highlight.RepoGitBranch,
-					GitCommitHash: &highlight.RepoGitCommitHash,
-				},
-				Status:      string(highlight.ModerationStatus),
-				Path:        highlight.Path,
-				StartLine:   int(highlight.StartLine),
-				EndLine:     int(highlight.EndLine),
-				Explanation: highlight.Explanation,
-				Snippet: HighlightSnippetDto{
-					StartLine: int(highlight.SnippetStartLine),
-					EndLine:   int(highlight.SnippetEndLine),
-					Code:      highlight.SnippetCode,
-				},
-			})
-		}
-		return dtoHighlights, nil
+		return RenderTemplate(lintHighlightsTemplate, dtoHighlights)
 	}))
-	server.Handle("/api/lint-highlights/moderate", wrap(func(request *http.Request) (struct{}, error) {
+	server.HandleFunc("/lint-tasks", wrap(func(request *http.Request, writer http.ResponseWriter) (string, error) {
+		dtoTasks, err := apiController.LintTasks(request.Context(), 0, 10000)
+		if err != nil {
+			return "", err
+		}
+		return RenderTemplate(lintTasksTemplate, dtoTasks)
+	}))
+	server.HandleFunc("/about", wrap(func(request *http.Request, writer http.ResponseWriter) (string, error) {
+		return RenderTemplate(aboutTemplate, struct{}{})
+	}))
+	server.Handle("/lint-highlight/moderate", wrap(func(request *http.Request, writer http.ResponseWriter) (string, error) {
 		params := request.URL.Query()
 		lintId := params.Get("lintId")
 		if lintId == "" {
-			return struct{}{}, fmt.Errorf("lintId required")
+			return "", fmt.Errorf("lintId required")
 		}
 		path := params.Get("path")
 		if path == "" {
-			return struct{}{}, fmt.Errorf("path required")
+			return "", fmt.Errorf("path required")
 		}
 		startLineString := params.Get("startLine")
 		if startLineString == "" {
-			return struct{}{}, fmt.Errorf("startLine required")
+			return "", fmt.Errorf("startLine required")
 		}
 		startLine, err := strconv.Atoi(startLineString)
 		if err != nil {
-			return struct{}{}, err
+			return "", err
 		}
 		endLineString := params.Get("endLine")
 		if endLineString == "" {
-			return struct{}{}, fmt.Errorf("endLine required")
+			return "", fmt.Errorf("endLine required")
 		}
 		endLine, err := strconv.Atoi(endLineString)
 		if err != nil {
-			return struct{}{}, err
+			return "", err
 		}
 		status := params.Get("status")
 		if status != "accepted" && status != "rejected" {
-			return struct{}{}, fmt.Errorf("unexpected status: %v", status)
+			return "", fmt.Errorf("unexpected status: %v", status)
 		}
-		arg := db.ModerateBugHuntHighlightParams{
-			LintID:           lintId,
-			Path:             path,
-			StartLine:        int32(startLine),
-			EndLine:          int32(endLine),
-			ModerationStatus: db.HighlightStatus(status),
-		}
-		return struct{}{}, pgStorage.ModerateBugHuntHighlight(request.Context(), arg)
-	}))
-	server.HandleFunc("/oauth/callback", func(writer http.ResponseWriter, request *http.Request) {
-		code := request.URL.Query().Get("code")
-		if code == "" {
-			writer.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-		token, err := githubOauthConfig.Exchange(request.Context(), code)
+		err = apiController.LintHighlightModerate(request.Context(), lintId, path, startLine, endLine, status)
 		if err != nil {
-			logging.Logger.Errorf("failed to get token from code: %v", err)
-			writer.WriteHeader(http.StatusInternalServerError)
-			return
+			return "", err
 		}
-		writer.WriteHeader(http.StatusOK)
-		body, _ := io.ReadAll(request.Body)
-		logging.Logger.Infof("callback: %v %v, token: %v", request.RequestURI, string(body), token)
-	})
-	server.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		if !basicAuth(writer, request) {
-			return
+		return fmt.Sprintf(`<div class="%v">%v</div>`, status, status), nil
+	}))
+	server.HandleFunc("/", wrap(func(request *http.Request, writer http.ResponseWriter) (string, error) {
+		dashboardDto, err := apiController.Dashboard(request.Context())
+		if err != nil {
+			return "", err
 		}
-		if !strings.HasPrefix(request.URL.Path, "/assets") {
-			request.URL.Path = "/"
-		}
-		http.FileServer(http.Dir("./static")).ServeHTTP(writer, request)
-	})
+		return RenderTemplate(dashboardTemplate, dashboardDto)
+	}))
+	//server.HandleFunc("/oauth/callback", func(writer http.ResponseWriter, request *http.Request) {
+	//	code := request.URL.Query().Get("code")
+	//	if code == "" {
+	//		writer.WriteHeader(http.StatusUnauthorized)
+	//		return
+	//	}
+	//	token, err := githubOauthConfig.Exchange(request.Context(), code)
+	//	if err != nil {
+	//		logging.Logger.Errorf("failed to get token from code: %v", err)
+	//		writer.WriteHeader(http.StatusInternalServerError)
+	//		return
+	//	}
+	//	writer.WriteHeader(http.StatusOK)
+	//	body, _ := io.ReadAll(request.Body)
+	//	logging.Logger.Infof("callback: %v %v, token: %v", request.RequestURI, string(body), token)
+	//})
 	err = http.ListenAndServe(serverListenAddr, server)
 	if err != nil {
 		logging.Logger.Errorf("exited server: %v", err)

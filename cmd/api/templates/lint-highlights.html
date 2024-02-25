@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link href="/static/styles.css" rel="stylesheet"/>
+    <!-- TODO: download all the libs -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+    <title>gobughunter</title>
+</head>
+<body>
+<div id="app">
+    <main>
+        <header>
+            <h1>gobughunter</h1>
+            <nav>
+                |
+                <a href="/">dashboard</a>
+                |
+                <a href="/tasks">lint tasks</a>
+                |
+                <a href="/about">about</a>
+                |
+            </nav>
+        </header>
+        <h2 style="text-align: left">
+            {{ if not (eq .LintId "") }}
+            highlights for lint: {{ .LintId }}
+            {{ end }}
+            {{ if not (eq .RepoId "") }}
+            highlights for repo: {{ .RepoId }}
+            {{ end }}
+            {{ if not (eq .LinterId "") }}
+            highlights for linter: {{ .LinterId }}
+            {{ end }}
+        </h2>
+        {{ range $i, $highlight := .Highlights }}
+        <div>
+            <div>
+                <div>
+                    <span>
+                        <a href="{{ $highlight.Repo.GitUrl }}">{{ $highlight.Repo.Id }}</a>:
+                        <a href="{{ $highlight.Repo.GitUrl }}/blob/{{ $highlight.Repo.GitBranch }}/{{ $highlight.Path }}#L{{ $highlight.StartLine }}-L{{ $highlight.EndLine }}" target="_blank">
+                            {{ $highlight.Path }}#L{{ $highlight.StartLine }}-L{{ $highlight.EndLine }}
+                        </a>
+                    </span>
+                    {{ if eq $highlight.Status "pending" }}
+                    <span id="container-{{ $i }}">
+                        <button
+                                class="accepted"
+                                hx-post="/lint-highlight/moderate?lintId={{ $highlight.LintId }}&path={{ $highlight.Path }}&startLine={{ $highlight.StartLine }}&endLine={{ $highlight.EndLine }}&status=accepted"
+                                hx-trigger="click"
+                                hx-target="#container-{{ $i }}"
+                                hx-swap="outerHTML"
+                        >accept bug
+                        </button>
+                        <button
+                                class="rejected"
+                                hx-post="/lint-highlight/moderate?lintId={{ $highlight.LintId }}&path={{ $highlight.Path }}&startLine={{ $highlight.StartLine }}&endLine={{ $highlight.EndLine }}&status=rejected"
+                                hx-trigger="click"
+                                hx-target="#container-{{ $i }}"
+                                hx-swap="outerHTML"
+                        >reject bug
+                        </button>
+                    </span>
+                    {{ end }}
+                    {{ if eq $highlight.Status "accepted" }}
+                    <div class="accepted">accepted</div>
+                    {{ end }}
+                    {{ if eq $highlight.Status "rejected" }}
+                    <div class="rejected">rejected</div>
+                    {{ end }}
+                </div>
+                <div>
+                    <a href="{{ $highlight.Linter.GitUrl }}">{{ $highlight.Linter.Id }}</a>:
+                    <span class="explanation">{{ $highlight.Explanation }}</span>
+                </div>
+            </div>
+            <pre><code class="language-go">{{ $highlight.Snippet.Code }}</code></pre>
+        </div>
+        {{ end }}
+    </main>
+    <script>hljs.highlightAll();</script>
+</div>
+</body>
+</html>

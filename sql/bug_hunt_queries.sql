@@ -22,21 +22,21 @@ WITH highlights AS (SELECT h.linter_id,
                              h.start_line,
                              h.end_line),
      linter_stats_total AS (SELECT linter_id,
-                                   COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                   COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                             FROM highlights
                             GROUP BY linter_id),
      linter_stats_pending AS (SELECT linter_id,
-                                     COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                     COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                               FROM highlights
                               WHERE moderation_status = 'pending'
                               GROUP BY linter_id),
      linter_stats_accepted AS (SELECT linter_id,
-                                      COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                      COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                                FROM highlights
                                WHERE moderation_status = 'accepted'
                                GROUP BY linter_id),
      linter_stats_rejected AS (SELECT linter_id,
-                                      COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                      COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                                FROM highlights
                                WHERE moderation_status = 'rejected'
                                GROUP BY linter_id)
@@ -45,16 +45,16 @@ SELECT linters.linter_id,
        linters.linter_git_branch,
        linters.linter_last_docker_image,
        linters.linter_last_docker_sha_hash,
-       COALESCE(total.cnt_dedup, 0)    as total_highlight_dedup,
-       COALESCE(pending.cnt_dedup, 0)  as pending_highlight_dedup,
-       COALESCE(rejected.cnt_dedup, 0) as rejected_highlight_dedup,
-       COALESCE(accepted.cnt_dedup, 0) as accepted_highlight_dedup
+       COALESCE(total.cnt, 0)    as total_highlight,
+       COALESCE(pending.cnt, 0)  as pending_highlight,
+       COALESCE(rejected.cnt, 0) as rejected_highlight,
+       COALESCE(accepted.cnt, 0) as accepted_highlight
 FROM linters as linters
          LEFT JOIN linter_stats_total as total ON linters.linter_id = total.linter_id
          LEFT JOIN linter_stats_pending as pending ON linters.linter_id = pending.linter_id
          LEFT JOIN linter_stats_rejected as rejected ON linters.linter_id = rejected.linter_id
          LEFT JOIN linter_stats_accepted as accepted ON linters.linter_id = accepted.linter_id
-ORDER BY accepted_highlight_dedup DESC, pending_highlight_dedup DESC, rejected_highlight_dedup, updated_at DESC;
+ORDER BY accepted_highlight DESC, pending_highlight DESC, rejected_highlight, updated_at DESC;
 
 -- name: ListBugHuntRepos :many
 WITH highlights AS (SELECT h.linter_id,
@@ -80,21 +80,21 @@ WITH highlights AS (SELECT h.linter_id,
                              h.start_line,
                              h.end_line),
      repo_stats_total AS (SELECT repo_id,
-                                 COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                 COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                           FROM highlights
                           GROUP BY repo_id),
      repo_stats_pending AS (SELECT repo_id,
-                                   COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                   COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                             FROM highlights
                             WHERE moderation_status = 'pending'
                             GROUP BY repo_id),
      repo_stats_accepted AS (SELECT repo_id,
-                                    COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                    COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                              FROM highlights
                              WHERE moderation_status = 'accepted'
                              GROUP BY repo_id),
      repo_stats_rejected AS (SELECT repo_id,
-                                    COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt_dedup
+                                    COUNT(DISTINCT (repo_id, path, start_line, end_line)) as cnt
                              FROM highlights
                              WHERE moderation_status = 'rejected'
                              GROUP BY repo_id)
@@ -102,16 +102,16 @@ SELECT repos.repo_id,
        repos.repo_git_url,
        repos.repo_git_branch,
        repos.repo_last_git_commit_hash,
-       COALESCE(total.cnt_dedup, 0)    as total_highlight_dedup,
-       COALESCE(pending.cnt_dedup, 0)  as pending_highlight_dedup,
-       COALESCE(rejected.cnt_dedup, 0) as rejected_highlight_dedup,
-       COALESCE(accepted.cnt_dedup, 0) as accepted_highlight_dedup
+       COALESCE(total.cnt, 0)    as total_highlight,
+       COALESCE(pending.cnt, 0)  as pending_highlight,
+       COALESCE(rejected.cnt, 0) as rejected_highlight,
+       COALESCE(accepted.cnt, 0) as accepted_highlight
 FROM repos as repos
          LEFT JOIN repo_stats_total as total ON repos.repo_id = total.repo_id
          LEFT JOIN repo_stats_pending as pending ON repos.repo_id = pending.repo_id
          LEFT JOIN repo_stats_rejected as rejected ON repos.repo_id = rejected.repo_id
          LEFT JOIN repo_stats_accepted as accepted ON repos.repo_id = accepted.repo_id
-ORDER BY accepted_highlight_dedup DESC, pending_highlight_dedup DESC, rejected_highlight_dedup, updated_at DESC;
+ORDER BY accepted_highlight DESC, pending_highlight DESC, rejected_highlight, updated_at DESC;
 
 -- name: ListBugHuntLintTasks :many
 SELECT repos.repo_id,

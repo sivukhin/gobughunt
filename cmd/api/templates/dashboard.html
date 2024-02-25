@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <link href="/static/styles.css" rel="stylesheet"/>
+    <title>gobughunter</title>
+</head>
+<body>
+<div id="app">
+    <main>
+        <header>
+            <h1>gobughunter</h1>
+            <nav>
+                |
+                <a href="/">dashboard</a>
+                |
+                <a href="/lint-tasks">lint tasks</a>
+                |
+                <a href="/about">about</a>
+                |
+            </nav>
+        </header>
+        <div class="overview">
+            <div>
+                <h2 style="text-align: left">linters</h2>
+                <table>
+                    <tr>
+                        <th style="text-align: left">linter</th>
+                        <th style="text-align: right">accepted</th>
+                        <th style="text-align: right">pending</th>
+                        <th style="text-align: right">rejected</th>
+                    </tr>
+                    {{ range $linter := .Linters }}
+                    <tr class="link" onclick="window.location = '/lint-highlights?linterId={{ $linter.Id }}'">
+                        <td style="text-align: left"><a href="{{$linter.GitUrl}}" target="_blank">{{ $linter.Id }}</a></td>
+                        <td style="text-align: right">{{ $linter.AcceptedHighlight }}</td>
+                        <td style="text-align: right">{{ $linter.PendingHighlight }}</td>
+                        <td style="text-align: right">{{ $linter.RejectedHighlight }}</td>
+                    </tr>
+                    {{ end }}
+                </table>
+            </div>
+            <div>
+                <h2 style="text-align: left">repos</h2>
+                <table>
+                    <tr>
+                        <th style="text-align: left">repo</th>
+                        <th style="text-align: right">accepted</th>
+                        <th style="text-align: right">pending</th>
+                        <th style="text-align: right">rejected</th>
+                    </tr>
+                    {{ range $repo := .Repos }}
+                    <tr class="link" onclick="window.location = '/lint-highlights?repoId={{ $repo.Id }}'">
+                        <td style="text-align: left"><a href="{{ $repo.GitUrl }}" target="_blank">{{ $repo.Id }}</a></td>
+                        <td style="text-align: right">{{ $repo.AcceptedHighlight }}</td>
+                        <td style="text-align: right">{{ $repo.PendingHighlight }}</td>
+                        <td style="text-align: right">{{ $repo.RejectedHighlight }}</td>
+                    </tr>
+                    {{ end }}
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+</body>
+</html>
