@@ -5,6 +5,7 @@ go 1.21.0
 require (
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/docker/docker v24.0.9+incompatible
+	github.com/golang-jwt/jwt/v5 v5.2.0
 	github.com/jackc/pgx/v5 v5.5.3
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/zap v1.26.0

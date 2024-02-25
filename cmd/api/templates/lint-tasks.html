@@ -12,10 +12,17 @@
         <header>
             <h1>gobughunter</h1>
             <nav>
+                {{ if not (eq .Login "") }}
+                {{ .Login }}
+                |
+                <a href="/logout">logout</a>
+                {{ else }}
+                <a href="/login">login</a>
+                {{ end }}
                 |
                 <a href="/">dashboard</a>
                 |
-                <a href="/tasks">lint tasks</a>
+                <a href="/lint-tasks">lint tasks</a>
                 |
                 <a href="/about">about</a>
                 |
@@ -29,14 +36,14 @@
                 <th style="text-align: left">status</th>
                 <th style="text-align: left">duration</th>
             </tr>
-            {{ range $task := . }}
+            {{ range $task := .Tasks }}
             <tr class="link" onclick="window.location = '/lint-highlights?lintId={{ $task.Id }}'">
                 <td style="text-align: left">{{ $task.Linter.Id }}</td>
                 <td style="text-align: left">{{ $task.Repo.Id }}</td>
                 <td style="text-align: left" class="{{ $task.Status }} highlight">
                     {{ $task.Status }}
                     {{ if and (not (eq $task.StatusComment nil)) (not (eq (DerefStr $task.StatusComment) "")) }}
-                    (<span class="comment" title={item.statusComment}>{{ $task.StatusComment }}</span>)
+                    (<span class="comment" title="{{ $task.StatusComment }}">{{ $task.StatusComment }}</span>)
                     {{ end }}
                 </td>
                 <td style="text-align: left">
@@ -44,7 +51,7 @@
                     {{ printf "%.2f" (DerefF64 $task.LintDurationSec) }} sec.
                     {{ end }}
                 </td>
-            {{ end }}
+                {{ end }}
         </table>
     </main>
 </div>

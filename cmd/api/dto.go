@@ -1,11 +1,13 @@
 package main
 
 type DashboardDto struct {
+	Login   string
 	Linters []LinterDto
 	Repos   []RepoDto
 }
 
 type LintHighlightsDto struct {
+	Login      string
 	LintId     string
 	RepoId     string
 	LinterId   string

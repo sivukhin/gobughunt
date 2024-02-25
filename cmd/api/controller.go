@@ -3,14 +3,17 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"html/template"
+	"slices"
 
 	"github.com/sivukhin/gobughunt/storage"
 	"github.com/sivukhin/gobughunt/storage/db"
 )
 
 type ApiController struct {
-	Storage *db.Queries
+	Storage         *db.Queries
+	ModeratorLogins []string
 }
 
 func RenderTemplate(t *template.Template, data any) (string, error) {
@@ -23,6 +26,10 @@ func RenderTemplate(t *template.Template, data any) (string, error) {
 }
 
 func (c ApiController) LintHighlightModerate(ctx context.Context, lintId string, path string, startLine, endLine int, status string) error {
+	user, _ := ctx.Value("user").(string)
+	if !slices.Contains(c.ModeratorLogins, user) {
+		return fmt.Errorf("access denied")
+	}
 	arg := db.ModerateBugHuntHighlightParams{
 		LintID:           lintId,
 		Path:             path,
@@ -34,6 +41,10 @@ func (c ApiController) LintHighlightModerate(ctx context.Context, lintId string,
 }
 
 func (c ApiController) LintHighlights(ctx context.Context, lintId, repoId, linterId string) (LintHighlightsDto, error) {
+	user, _ := ctx.Value("user").(string)
+	if !slices.Contains(c.ModeratorLogins, user) {
+		return LintHighlightsDto{}, fmt.Errorf("access denied")
+	}
 	args := db.ListBugHuntHighlightsParams{LintID: lintId, RepoID: repoId, LinterID: linterId}
 	highlights, err := c.Storage.ListBugHuntHighlights(ctx, args)
 	if err != nil {
@@ -68,14 +79,23 @@ func (c ApiController) LintHighlights(ctx context.Context, lintId, repoId, linte
 			},
 		})
 	}
-	return LintHighlightsDto{LintId: lintId, RepoId: repoId, LinterId: linterId, Highlights: dtoHighlights}, nil
+	return LintHighlightsDto{Login: user, LintId: lintId, RepoId: repoId, LinterId: linterId, Highlights: dtoHighlights}, nil
 }
 
-func (c ApiController) LintTasks(ctx context.Context, skip, take int) ([]LintTaskDto, error) {
+type LintTasksDto struct {
+	Login string
+	Tasks []LintTaskDto
+}
+
+func (c ApiController) LintTasks(ctx context.Context, skip, take int) (LintTasksDto, error) {
+	user, _ := ctx.Value("user").(string)
+	if !slices.Contains(c.ModeratorLogins, user) {
+		return LintTasksDto{}, fmt.Errorf("access denied")
+	}
 	args := db.ListBugHuntLintTasksParams{Offset: int32(skip), Limit: int32(take)}
 	tasks, err := c.Storage.ListBugHuntLintTasks(ctx, args)
 	if err != nil {
-		return nil, err
+		return LintTasksDto{}, err
 	}
 	dtoTasks := make([]LintTaskDto, 0, len(tasks))
 	for _, task := range tasks {
@@ -99,7 +119,7 @@ func (c ApiController) LintTasks(ctx context.Context, skip, take int) ([]LintTas
 			},
 		})
 	}
-	return dtoTasks, nil
+	return LintTasksDto{Login: user, Tasks: dtoTasks}, nil
 }
 
 func (c ApiController) Dashboard(ctx context.Context) (DashboardDto, error) {
@@ -142,5 +162,10 @@ func (c ApiController) Dashboard(ctx context.Context) (DashboardDto, error) {
 			},
 		})
 	}
-	return DashboardDto{Linters: dtoLinters, Repos: dtoRepos}, nil
+	user, _ := ctx.Value("user").(string)
+	return DashboardDto{
+		Login:   user,
+		Linters: dtoLinters,
+		Repos:   dtoRepos,
+	}, nil
 }

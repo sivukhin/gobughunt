@@ -17,10 +17,17 @@
         <header>
             <h1>gobughunter</h1>
             <nav>
+                {{ if not (eq .Login "") }}
+                {{ .Login }}
+                |
+                <a href="/logout">logout</a>
+                {{ else }}
+                <a href="/login">login</a>
+                {{ end }}
                 |
                 <a href="/">dashboard</a>
                 |
-                <a href="/tasks">lint tasks</a>
+                <a href="/lint-tasks">lint tasks</a>
                 |
                 <a href="/about">about</a>
                 |

@@ -9,6 +9,13 @@ import (
 	"github.com/sivukhin/gobughunt/lib/logging"
 )
 
+func Ternary[T any](condition bool, ok, fail T) T {
+	if condition {
+		return ok
+	}
+	return fail
+}
+
 func EnvMustParseDurationSec(key string) time.Duration {
 	value := os.Getenv(key)
 	seconds, err := strconv.Atoi(value)
@@ -24,6 +31,14 @@ func EnvMustParseString(key string) string {
 		logging.Logger.Fatalf("empty string found for required env var: key=%v", key)
 	}
 	return value
+}
+
+func EnvMustParseStringArray(key string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		logging.Logger.Fatalf("empty string found for required env var: key=%v", key)
+	}
+	return strings.Split(value, ",")
 }
 
 func EnvMustParseInt(key string) int64 {
