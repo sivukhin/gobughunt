@@ -6,9 +6,9 @@ import (
 
 	"github.com/sivukhin/gobughunt/lib"
 	"github.com/sivukhin/gobughunt/lib/logging"
-	"github.com/sivukhin/gobughunt/lib/storage"
 	"github.com/sivukhin/gobughunt/lib/timeout"
 	"github.com/sivukhin/gobughunt/lib/utils"
+	"github.com/sivukhin/gobughunt/storage"
 )
 
 func main() {
@@ -29,13 +29,13 @@ func main() {
 	defer cancel()
 	signalsCtx := timeout.SignalsCtx(syscall.SIGTERM, syscall.SIGKILL)
 
-	pgStorage, err := storage.NewPgStorage(connectCtx, connectionString)
+	pgStorage, err := storage.NewPgQueries(connectCtx, connectionString)
 	if err != nil {
 		logging.Logger.Fatalf("failed to create task storage: %v", err)
 	}
 
 	worker := lib.Worker{
-		LintStorage: storage.PgLintStorage(pgStorage),
+		Storage: pgStorage,
 		DockerApi: lib.NaiveDockerApi{
 			MemoryBytes: dockerMemoryGb * 1024 * 1024 * 1024,
 			CpuMilli:    dockerCpuMillis,

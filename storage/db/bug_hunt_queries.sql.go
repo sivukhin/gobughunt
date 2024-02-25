@@ -3,7 +3,7 @@
 //   sqlc v1.25.0
 // source: bug_hunt_queries.sql
 
-package storage
+package db
 
 import (
 	"context"
@@ -77,9 +77,9 @@ ORDER BY (t.moderation_status, t.repo_id, t.path, t.start_line)
 `
 
 type ListBugHuntHighlightsParams struct {
-	Column1 interface{}
-	Column2 interface{}
-	Column3 interface{}
+	LintID   interface{}
+	LinterID interface{}
+	RepoID   interface{}
 }
 
 type ListBugHuntHighlightsRow struct {
@@ -109,7 +109,7 @@ type ListBugHuntHighlightsRow struct {
 }
 
 func (q *Queries) ListBugHuntHighlights(ctx context.Context, arg ListBugHuntHighlightsParams) ([]ListBugHuntHighlightsRow, error) {
-	rows, err := q.db.Query(ctx, listBugHuntHighlights, arg.Column1, arg.Column2, arg.Column3)
+	rows, err := q.db.Query(ctx, listBugHuntHighlights, arg.LintID, arg.LinterID, arg.RepoID)
 	if err != nil {
 		return nil, err
 	}

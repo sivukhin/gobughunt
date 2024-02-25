@@ -185,9 +185,9 @@ WITH highlights AS (SELECT h.repo_id,
                                    JOIN lint_tasks as lint_tasks ON lint_highlights.lint_id = lint_tasks.lint_id) as h
                              JOIN linters as linters ON h.linter_id = linters.linter_id
                              JOIN repos as repos ON h.repo_id = repos.repo_id
-                    WHERE ($1 = '' OR h.lint_id = $1)
-                      AND ($2 = '' OR h.linter_id = $2)
-                      AND ($3 = '' OR h.repo_id = $3))
+                    WHERE (@lint_id = '' OR h.lint_id = @lint_id)
+                      AND (@linter_id = '' OR h.linter_id = @linter_id)
+                      AND (@repo_id = '' OR h.repo_id = @repo_id))
 SELECT *
 FROM highlights as t
 WHERE moderation_status = (SELECT MAX(moderation_status)

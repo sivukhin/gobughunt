@@ -9,9 +9,9 @@ import (
 	"syscall"
 
 	"github.com/sivukhin/gobughunt/lib/logging"
-	"github.com/sivukhin/gobughunt/lib/storage"
 	"github.com/sivukhin/gobughunt/lib/timeout"
 	"github.com/sivukhin/gobughunt/lib/utils"
+	"github.com/sivukhin/gobughunt/storage"
 )
 
 func main() {

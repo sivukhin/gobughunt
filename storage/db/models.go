@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.25.0
 
-package storage
+package db
 
 import (
 	"database/sql/driver"

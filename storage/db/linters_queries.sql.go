@@ -3,7 +3,7 @@
 //   sqlc v1.25.0
 // source: linters_queries.sql
 
-package storage
+package db
 
 import (
 	"context"

@@ -3,7 +3,7 @@
 //   sqlc v1.25.0
 // source: lint_tasks_queries.sql
 
-package storage
+package db
 
 import (
 	"context"
