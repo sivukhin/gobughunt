@@ -57,23 +57,27 @@ FROM linters as linters
 ORDER BY accepted_highlight DESC, pending_highlight DESC, rejected_highlight, updated_at DESC;
 
 -- name: ListBugHuntRepos :many
-WITH highlights AS (SELECT h.linter_id,
+WITH 
+    alive_highlights AS (SELECT t.lint_id,
+                                t.linter_id,
+                                t.linter_docker_sha_hash,
+                                t.repo_id,
+                                t.repo_git_commit_hash,
+                                h.path,
+                                h.start_line,
+                                h.end_line,
+                                h.moderation_status
+                          FROM lint_highlights as h
+                          JOIN lint_tasks as t ON h.lint_id = t.lint_id
+                          JOIN linters as l ON t.linter_id = l.linter_id
+                          JOIN repos as r ON t.repo_id = r.repo_id),
+    highlights AS (SELECT h.linter_id,
                            h.repo_id,
                            h.path,
                            h.start_line,
                            h.end_line,
                            max(h.moderation_status) as moderation_status
-                    FROM (SELECT t.lint_id,
-                                 t.linter_id,
-                                 t.linter_docker_sha_hash,
-                                 t.repo_id,
-                                 t.repo_git_commit_hash,
-                                 h.path,
-                                 h.start_line,
-                                 h.end_line,
-                                 h.moderation_status
-                          FROM lint_highlights as h
-                                   JOIN lint_tasks as t ON h.lint_id = t.lint_id) h
+                    FROM alive_highlights h
                     GROUP BY h.linter_id,
                              h.repo_id,
                              h.path,
